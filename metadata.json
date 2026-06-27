@@ -1,0 +1,6 @@
+{
+  "name": "Hisab & Expense Tracker",
+  "description": "A modern dual-wallet expense manager and family account tracker built with Jetpack Compose.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
