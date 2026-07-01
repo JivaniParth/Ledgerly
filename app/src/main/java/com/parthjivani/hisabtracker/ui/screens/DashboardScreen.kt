@@ -1,6 +1,7 @@
 package com.parthjivani.hisabtracker.ui.screens
 
 import androidx.activity.compose.BackHandler
+import com.parthjivani.hisabtracker.ui.components.AmountInputField
 import androidx.compose.animation.*
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -59,8 +60,20 @@ fun DashboardScreen(
     val budgetGoals by viewModel.allBudgetGoals.collectAsState()
     val savingsGoals by viewModel.allSavingsGoals.collectAsState()
     val creditCards by viewModel.allCreditCards.collectAsState()
+    val expenseWalletColorHex by viewModel.expenseWalletColor.collectAsState()
     val currentMillis = System.currentTimeMillis()
     val ninetyDaysAgo = currentMillis - (90L * 24L * 60L * 60L * 1000L)
+
+    // Helper to parse hex colors securely
+    fun parseColorSafe(hex: String, defaultStart: Color, defaultEnd: Color): List<Color> {
+        if (hex.isBlank()) return listOf(defaultStart, defaultEnd)
+        return try {
+            val parsed = Color(android.graphics.Color.parseColor(if (!hex.startsWith("#")) "#$hex" else hex))
+            listOf(parsed, parsed)
+        } catch (e: Exception) {
+            listOf(defaultStart, defaultEnd)
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -128,7 +141,7 @@ fun DashboardScreen(
                     title = "Expense Wallet",
                     balance = expenseBalance,
                     walletSymbol = "E",
-                    gradientColors = listOf(ExpenseGradientStart, ExpenseGradientEnd),
+                    gradientColors = parseColorSafe(expenseWalletColorHex, ExpenseGradientStart, ExpenseGradientEnd),
                     modifier = Modifier.weight(1f).testTag("expense_wallet_card")
                 )
                 if (creditCards.isNotEmpty()) {
@@ -147,7 +160,7 @@ fun DashboardScreen(
                         title = "Credit Card Expenses",
                         balance = topCardSpend,
                         walletSymbol = "C",
-                        gradientColors = listOf(FinanceTeal, FinanceTealDark),
+                        gradientColors = parseColorSafe(topCard?.color ?: "#009688", FinanceTeal, FinanceTealDark),
                         // Show card name + owner as subtitle
                         cardInfo = if (topCard != null) "${topCard.cardName} • ${topCard.ownerName}" else "Total card charges",
                         modifier = Modifier.weight(1f).testTag("credit_card_wallet_card")
@@ -298,9 +311,11 @@ fun DashboardScreen(
                             val categoryExpenses = transactions.filter { t ->
                                 t.date >= startOfMonth && (
                                     (t.type == TransactionType.PERSONAL_EXPENSE &&
+                                        t.sourceWallet != WalletType.TEMPORARY_WALLET &&
                                         (goal.category.equals("Overall", ignoreCase = true) || t.category.equals(goal.category, ignoreCase = true))) ||
                                     (t.type == TransactionType.FAMILY_TRANSFER &&
                                         t.direction == TransactionDirection.GIVEN_TO_THEM &&
+                                        t.sourceWallet != WalletType.TEMPORARY_WALLET &&
                                         (goal.category.equals("Overall", ignoreCase = true) || t.category.equals(goal.category, ignoreCase = true)))
                                 )
                             }.sumOf { it.amount }
@@ -404,12 +419,10 @@ fun DashboardScreen(
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("Update progress for ${activeSavingsGoal!!.name}. Current saved: ${formatCurrency(activeSavingsGoal!!.currentAmount)}", fontSize = 13.sp)
-                                    OutlinedTextField(
+                                    AmountInputField(
                                         value = amountInput,
                                         onValueChange = { amountInput = it },
-                                        label = { Text("Amount") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true
+                                        label = { Text("Amount") }
                                     )
                                 }
                             },
@@ -492,7 +505,7 @@ fun DashboardScreen(
                 // Category spend breakdown (last 30 days)
                 val startOfMonth = getStartOfCurrentMonthMillis()
                 val categoryBreakdown = transactions
-                    .filter { it.date >= startOfMonth && it.type == TransactionType.PERSONAL_EXPENSE }
+                    .filter { it.date >= startOfMonth && it.type == TransactionType.PERSONAL_EXPENSE && it.sourceWallet != WalletType.TEMPORARY_WALLET }
                     .groupBy { it.category }
                     .mapValues { (_, txs) -> txs.sumOf { it.amount } }
                     .toList()

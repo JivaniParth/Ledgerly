@@ -10,6 +10,8 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Modifier
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.parthjivani.hisabtracker.data.AppDatabase
 import com.parthjivani.hisabtracker.data.HisabRepository
 import com.parthjivani.hisabtracker.ui.HisabViewModel
@@ -24,12 +26,31 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Create custom_wallets table
+                database.execSQL("CREATE TABLE IF NOT EXISTS `custom_wallets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `color` TEXT NOT NULL)")
+                
+                // Add columns to transactions
+                database.execSQL("ALTER TABLE `transactions` ADD COLUMN `customWalletId` INTEGER")
+                database.execSQL("ALTER TABLE `transactions` ADD COLUMN `destinationCustomWalletId` INTEGER")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add color column to credit_cards
+                database.execSQL("ALTER TABLE `credit_cards` ADD COLUMN `color` TEXT NOT NULL DEFAULT '#E91E63'")
+            }
+        }
+
         // Setup database and repository singletons
         database = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
             "hisab_database"
         )
+        .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
         .fallbackToDestructiveMigration()
         .build()
 
@@ -40,7 +61,8 @@ class MainActivity : ComponentActivity() {
             database.budgetGoalDao(),
             database.savingsGoalDao(),
             database.recurringTransactionDao(),
-            database.creditCardDao()
+            database.creditCardDao(),
+            database.customWalletDao()
         )
 
         enableEdgeToEdge()

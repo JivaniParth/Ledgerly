@@ -10,10 +10,12 @@ class HisabRepository(
     private val budgetGoalDao: BudgetGoalDao,
     private val savingsGoalDao: SavingsGoalDao,
     private val recurringTransactionDao: RecurringTransactionDao,
-    private val creditCardDao: CreditCardDao
+    private val creditCardDao: CreditCardDao,
+    private val customWalletDao: CustomWalletDao
 ) {
     val allFamilyMembers: Flow<List<FamilyMember>> = familyMemberDao.getAllFamilyMembers()
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
+    val allCustomWallets: Flow<List<CustomWallet>> = customWalletDao.getAllCustomWalletsFlow()
     val allBudgetGoals: Flow<List<BudgetGoal>> = budgetGoalDao.getAllBudgetGoalsFlow()
     val allSavingsGoals: Flow<List<SavingsGoal>> = savingsGoalDao.getAllSavingsGoalsFlow()
     val allRecurringTransactions: Flow<List<RecurringTransaction>> = recurringTransactionDao.getAllRecurringTransactionsFlow()
@@ -22,6 +24,10 @@ class HisabRepository(
     suspend fun insertCreditCard(card: CreditCard): Long = creditCardDao.insertCreditCard(card)
     suspend fun deleteCreditCard(card: CreditCard) = creditCardDao.deleteCreditCard(card)
     suspend fun clearAllCreditCards() = creditCardDao.clearAllCreditCards()
+
+    suspend fun insertCustomWallet(wallet: CustomWallet): Long = customWalletDao.insertCustomWallet(wallet)
+    suspend fun deleteCustomWallet(wallet: CustomWallet) = customWalletDao.deleteCustomWallet(wallet)
+    suspend fun clearAllCustomWallets() = customWalletDao.clearAllCustomWallets()
 
     // Settings helpers
     suspend fun getSetting(key: String, defaultValue: String): String {
@@ -116,6 +122,7 @@ class HisabRepository(
         savingsGoalDao.clearAllSavingsGoals()
         recurringTransactionDao.clearAllRecurringTransactions()
         appSettingDao.clearAllSettings()
+        customWalletDao.clearAllCustomWallets()
     }
     companion object {
         fun calculateExpenseBalance(transactions: List<Transaction>): Double {
@@ -203,6 +210,37 @@ class HisabRepository(
             
             val totalSpending = expenseOutflows.sumOf { it.amount }
             return totalSpending / 3.0
+        }
+
+        fun calculateTempWalletBalance(transactions: List<Transaction>, customWalletId: Long): Double {
+            var balance = 0.0
+            for (t in transactions) {
+                val isSourceThisWallet = t.sourceWallet == WalletType.TEMPORARY_WALLET && t.customWalletId == customWalletId
+                val isDestThisWallet = t.destinationWallet == WalletType.TEMPORARY_WALLET && t.destinationCustomWalletId == customWalletId
+
+                when (t.type) {
+                    TransactionType.PERSONAL_INCOME -> {
+                        if (isSourceThisWallet) balance += t.amount
+                    }
+                    TransactionType.PERSONAL_EXPENSE -> {
+                        if (isSourceThisWallet) balance -= t.amount
+                    }
+                    TransactionType.FAMILY_TRANSFER -> {
+                        if (isSourceThisWallet || isDestThisWallet) {
+                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM) {
+                                balance += t.amount
+                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM) {
+                                balance -= t.amount
+                            }
+                        }
+                    }
+                    TransactionType.WALLET_TRANSFER -> {
+                        if (isSourceThisWallet) balance -= t.amount
+                        if (isDestThisWallet) balance += t.amount
+                    }
+                }
+            }
+            return balance
         }
     }
 }

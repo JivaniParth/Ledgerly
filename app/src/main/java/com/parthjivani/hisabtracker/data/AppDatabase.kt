@@ -125,6 +125,21 @@ interface CreditCardDao {
     suspend fun clearAllCreditCards()
 }
 
+@Dao
+interface CustomWalletDao {
+    @Query("SELECT * FROM custom_wallets ORDER BY name ASC")
+    fun getAllCustomWalletsFlow(): Flow<List<CustomWallet>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCustomWallet(wallet: CustomWallet): Long
+
+    @Delete
+    suspend fun deleteCustomWallet(wallet: CustomWallet)
+
+    @Query("DELETE FROM custom_wallets")
+    suspend fun clearAllCustomWallets()
+}
+
 class Converters {
     @TypeConverter
     fun fromWalletType(value: WalletType): String {
@@ -165,9 +180,10 @@ class Converters {
         BudgetGoal::class,
         SavingsGoal::class,
         RecurringTransaction::class,
-        CreditCard::class
+        CreditCard::class,
+        CustomWallet::class
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -179,4 +195,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun recurringTransactionDao(): RecurringTransactionDao
     abstract fun creditCardDao(): CreditCardDao
+    abstract fun customWalletDao(): CustomWalletDao
 }

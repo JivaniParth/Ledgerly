@@ -51,9 +51,10 @@ fun FamilyHubScreen(
     familyMembers: List<FamilyMember>,
     transactions: List<Transaction>,
     onAddNewMember: (String, String) -> Unit,
-    viewModel: HisabViewModel
+    viewModel: HisabViewModel,
+    onFamilyMemberClick: (Long) -> Unit,
+    onCreditCardClick: (Long) -> Unit
 ) {
-    var selectedMemberForTimeline by remember { mutableStateOf<FamilyMember?>(null) }
     var selectedHubTab by remember { mutableStateOf(0) } // 0 = Members, 1 = Credit Cards
 
     // Member form values
@@ -355,20 +356,17 @@ fun FamilyHubScreen(
                         modifier = Modifier.weight(1f).testTag("family_members_list")
                     ) {
                         items(familyMembers) { fm ->
-                            val isSelected = selectedMemberForTimeline?.id == fm.id
-                            val colorAccent = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                                     .testTag("family_member_item_${fm.id}")
                                     .clickable {
-                                        selectedMemberForTimeline = if (isSelected) null else fm
+                                        onFamilyMemberClick(fm.id)
                                     },
                                 shape = RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(2.dp, colorAccent),
-                                colors = CardDefaults.cardColors(containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Row(
@@ -411,28 +409,6 @@ fun FamilyHubScreen(
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(Icons.Default.Delete, contentDescription = "Delete account", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                            }
-                                        }
-                                    }
-
-                                    // Timeline inside dropdown
-                                    if (isSelected) {
-                                        val membersTransactions = transactions.filter { it.familyMemberId == fm.id }
-                                        Spacer(modifier = Modifier.height(14.dp))
-                                        Text("Transfer History with ${fm.name}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-
-                                        if (membersTransactions.isEmpty()) {
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Text("No transactions logged under this member yet.", fontSize = 12.sp, color = Color.Gray)
-                                        } else {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                membersTransactions.forEach { t ->
-                                                    TransactionRow(
-                                                        transaction = t,
-                                                        familyMembers = familyMembers
-                                                    )
-                                                }
                                             }
                                         }
                                     }
@@ -537,7 +513,11 @@ fun FamilyHubScreen(
                                 .sumOf { it.amount }
 
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onCreditCardClick(card.id)
+                                    },
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))

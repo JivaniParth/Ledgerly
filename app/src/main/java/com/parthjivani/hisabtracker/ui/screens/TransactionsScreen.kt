@@ -54,10 +54,12 @@ fun TransactionsScreen(
     val transactions by viewModel.allTransactions.collectAsState()
     val familyMembers by viewModel.allFamilyMembers.collectAsState()
     val creditCards by viewModel.allCreditCards.collectAsState()
+    val customWallets by viewModel.allCustomWallets.collectAsState()
 
     // Filter states — stored in ViewModel so they survive navigation to/from the edit screen
     val walletFilter by viewModel.txWalletFilter.collectAsState()
     val cardFilter by viewModel.txCardFilter.collectAsState()
+    val customWalletFilter by viewModel.txCustomWalletFilter.collectAsState()
     val memberFilter by viewModel.txMemberFilter.collectAsState()
     val categoryFilter by viewModel.txCategoryFilter.collectAsState()
     val typeFilter by viewModel.txTypeFilter.collectAsState()
@@ -79,6 +81,7 @@ fun TransactionsScreen(
     // Dropdown expand states
     var walletMenuExpanded by remember { mutableStateOf(false) }
     var cardMenuExpanded by remember { mutableStateOf(false) }
+    var customWalletMenuExpanded by remember { mutableStateOf(false) }
     var memberMenuExpanded by remember { mutableStateOf(false) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
@@ -89,6 +92,7 @@ fun TransactionsScreen(
     val filteredTransactions = transactions.filter { t ->
         val matchesWallet = walletFilter == null || t.sourceWallet == walletFilter || t.destinationWallet == walletFilter
         val matchesCard = cardFilter == null || t.creditCardId == cardFilter
+        val matchesCustomWallet = customWalletFilter == null || t.customWalletId == customWalletFilter || t.destinationCustomWalletId == customWalletFilter
         val matchesMember = memberFilter == null || t.familyMemberId == memberFilter
         val matchesCategory = categoryFilter == null || t.category.equals(categoryFilter, ignoreCase = true)
         val matchesType = typeFilter == null || t.type == typeFilter
@@ -104,7 +108,7 @@ fun TransactionsScreen(
             val typeMatch = t.type.name.lowercase().replace("_", " ").contains(q)
             notesMatch || categoryMatch || amountMatch || typeMatch
         }
-        matchesWallet && matchesCard && matchesMember && matchesCategory && matchesType && matchesSearch
+        matchesWallet && matchesCard && matchesCustomWallet && matchesMember && matchesCategory && matchesType && matchesSearch
     }
 
     LaunchedEffect(lastSavedId) {
@@ -351,6 +355,27 @@ fun TransactionsScreen(
                     }
                 }
 
+                // Temporary Wallet Filter Dropdown
+                if (customWallets.isNotEmpty()) {
+                    Box {
+                        FilterChip(
+                            selected = customWalletFilter != null,
+                            onClick = { customWalletMenuExpanded = true },
+                            label = {
+                                val currentTempWallet = customWallets.find { it.id == customWalletFilter }
+                                Text(currentTempWallet?.name ?: "Temp Wallet")
+                            },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
+                        )
+                        DropdownMenu(expanded = customWalletMenuExpanded, onDismissRequest = { customWalletMenuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("All Temp Wallets") }, onClick = { viewModel.setTxCustomWalletFilter(null); customWalletMenuExpanded = false })
+                            customWallets.forEach { cw ->
+                                DropdownMenuItem(text = { Text(cw.name) }, onClick = { viewModel.setTxCustomWalletFilter(cw.id); customWalletMenuExpanded = false })
+                            }
+                        }
+                    }
+                }
+
                 // Family Member Filter Dropdown
                 Box {
                     FilterChip(
@@ -405,7 +430,7 @@ fun TransactionsScreen(
             }
 
             // Clear filter chip if any active
-            if (walletFilter != null || cardFilter != null || memberFilter != null || categoryFilter != null || typeFilter != null || searchQuery.isNotEmpty()) {
+            if (walletFilter != null || customWalletFilter != null || cardFilter != null || memberFilter != null || categoryFilter != null || typeFilter != null || searchQuery.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End

@@ -65,6 +65,9 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
     private val _txTypeFilter = MutableStateFlow<TransactionType?>(null)
     val txTypeFilter: StateFlow<TransactionType?> = _txTypeFilter.asStateFlow()
 
+    private val _txCustomWalletFilter = MutableStateFlow<Long?>(null)
+    val txCustomWalletFilter: StateFlow<Long?> = _txCustomWalletFilter.asStateFlow()
+
     private val _txSearchQuery = MutableStateFlow("")
     val txSearchQuery: StateFlow<String> = _txSearchQuery.asStateFlow()
 
@@ -73,6 +76,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
     fun setTxMemberFilter(v: Long?) { _txMemberFilter.value = v }
     fun setTxCategoryFilter(v: String?) { _txCategoryFilter.value = v }
     fun setTxTypeFilter(v: TransactionType?) { _txTypeFilter.value = v }
+    fun setTxCustomWalletFilter(v: Long?) { _txCustomWalletFilter.value = v }
     fun setTxSearchQuery(v: String) { _txSearchQuery.value = v }
     fun clearTxFilters() {
         _txWalletFilter.value = null
@@ -80,6 +84,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
         _txMemberFilter.value = null
         _txCategoryFilter.value = null
         _txTypeFilter.value = null
+        _txCustomWalletFilter.value = null
         _txSearchQuery.value = ""
     }
 
@@ -95,8 +100,17 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
     val allCreditCards: StateFlow<List<CreditCard>> = repository.allCreditCards
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allCustomWallets: StateFlow<List<CustomWallet>> = repository.allCustomWallets
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _categories = MutableStateFlow<List<String>>(emptyList())
     val categories: StateFlow<List<String>> = _categories.asStateFlow()
+
+    private val _expenseWalletColor = MutableStateFlow<String>("")
+    val expenseWalletColor: StateFlow<String> = _expenseWalletColor.asStateFlow()
+
+    private val _creditCardWalletColor = MutableStateFlow<String>("")
+    val creditCardWalletColor: StateFlow<String> = _creditCardWalletColor.asStateFlow()
 
     private val _incomeCategories = MutableStateFlow<List<String>>(emptyList())
     val incomeCategories: StateFlow<List<String>> = _incomeCategories.asStateFlow()
@@ -171,6 +185,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
             if (api != null) {
                 val supMembers = api.getFamilyMembers()
                 val supCards = api.getCreditCards()
+                val supCustomWallets = api.getCustomWallets()
                 val supTxs = buildList {
                     val pageSize = 1000
                     var offset = 0
@@ -197,6 +212,8 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
                         localMembers.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertFamilyMembers(chunk) }
                         val localCards = repository.allCreditCards.first()
                         if (localCards.isNotEmpty()) localCards.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertCreditCards(chunk) }
+                        val localWallets = repository.allCustomWallets.first()
+                        if (localWallets.isNotEmpty()) localWallets.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertCustomWallets(chunk) }
                         val localAllTxs = repository.allTransactions.first()
                         if (localAllTxs.isNotEmpty()) localAllTxs.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertTransactions(chunk) }
                         val localGoals = repository.allBudgetGoals.first()
@@ -211,6 +228,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
                 } else {
                     repository.clearAllFamilyMembers()
                     repository.clearAllCreditCards()
+                    repository.clearAllCustomWallets()
                     repository.clearAllTransactions()
                     repository.clearAllBudgetGoals()
                     repository.clearAllSavingsGoals()
@@ -218,6 +236,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
 
                     supMembers.forEach { repository.insertFamilyMember(it.toRoom()) }
                     supCards.forEach { repository.insertCreditCard(it.toRoom()) }
+                    supCustomWallets.forEach { repository.insertCustomWallet(it.toRoom()) }
                     supTxs.forEach { repository.insertTransaction(it.toRoom()) }
                     supGoals.forEach { repository.insertBudgetGoal(it.toRoom()) }
                     supSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
@@ -262,6 +281,8 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
             try {
                 val themeStr = repository.getSetting("app_theme", "system")
                 _appTheme.value = themeStr
+                _expenseWalletColor.value = repository.getSetting("expense_wallet_color", "")
+                _creditCardWalletColor.value = repository.getSetting("credit_card_wallet_color", "")
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -358,6 +379,57 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
         }
     }
 
+    // Custom Wallet actions
+    fun addCustomWallet(name: String, color: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val wallet = CustomWallet(name = name, color = color)
+            val id = repository.insertCustomWallet(wallet)
+            try {
+                SupabaseClient.api?.let { api ->
+                    api.upsertCustomWallets(listOf(wallet.copy(id = id).toSupabase()))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun updateCustomWallet(wallet: CustomWallet) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertCustomWallet(wallet)
+            try {
+                SupabaseClient.api?.let { api ->
+                    api.upsertCustomWallets(listOf(wallet.toSupabase()))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun deleteCustomWallet(wallet: CustomWallet) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val txs = repository.allTransactions.first().filter {
+                (it.customWalletId == wallet.id || it.destinationCustomWalletId == wallet.id) &&
+                it.type != TransactionType.WALLET_TRANSFER
+            }
+            txs.forEach { deleteTransaction(it) }
+
+            repository.deleteCustomWallet(wallet)
+            try {
+                SupabaseClient.api?.let { api ->
+                    api.deleteCustomWallet("eq.${wallet.id}")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun calculateTempWalletBalance(walletId: Long): Double {
+        return HisabRepository.calculateTempWalletBalance(allTransactions.value, walletId)
+    }
+
     fun addTransactions(transactions: List<Transaction>) {
         viewModelScope.launch(Dispatchers.IO) {
             val finalTxs = mutableListOf<Transaction>()
@@ -388,7 +460,9 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
         direction: TransactionDirection? = null,
         date: Long = System.currentTimeMillis(),
         category: String = "Other",
-        creditCardId: Long? = null
+        creditCardId: Long? = null,
+        customWalletId: Long? = null,
+        destinationCustomWalletId: Long? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val tx = Transaction(
@@ -401,7 +475,9 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
                 familyMemberId = familyMemberId,
                 direction = direction,
                 category = category,
-                creditCardId = creditCardId
+                creditCardId = creditCardId,
+                customWalletId = customWalletId,
+                destinationCustomWalletId = destinationCustomWalletId
             )
             val id = repository.insertTransaction(tx)
             _lastSavedTransactionId.value = id
@@ -439,7 +515,9 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
         direction: TransactionDirection? = null,
         date: Long = System.currentTimeMillis(),
         category: String = "Other",
-        creditCardId: Long? = null
+        creditCardId: Long? = null,
+        customWalletId: Long? = null,
+        destinationCustomWalletId: Long? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val tx = Transaction(
@@ -453,7 +531,9 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
                 familyMemberId = familyMemberId,
                 direction = direction,
                 category = category,
-                creditCardId = creditCardId
+                creditCardId = creditCardId,
+                customWalletId = customWalletId,
+                destinationCustomWalletId = destinationCustomWalletId
             )
             val savedId = repository.insertTransaction(tx)
             _lastSavedTransactionId.value = savedId
@@ -473,6 +553,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
                 repository.clearAllTransactions()
                 repository.clearAllFamilyMembers()
                 repository.clearAllCreditCards()
+                repository.clearAllCustomWallets()
                 repository.clearAllBudgetGoals()
                 repository.clearAllSavingsGoals()
                 repository.clearAllRecurringTransactions()
@@ -491,6 +572,20 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    fun setExpenseWalletColor(colorHex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _expenseWalletColor.value = colorHex
+            repository.insertSetting("expense_wallet_color", colorHex)
+        }
+    }
+
+    fun setCreditCardWalletColor(colorHex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _creditCardWalletColor.value = colorHex
+            repository.insertSetting("credit_card_wallet_color", colorHex)
         }
     }
 
@@ -861,6 +956,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
 
                 val supMembers = api.getFamilyMembers()
                 val supCards = api.getCreditCards()
+                val supCustomWallets = api.getCustomWallets()
                 val supTxs = buildList {
                     val pageSize = 1000
                     var offset = 0
@@ -889,6 +985,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
 
                 repository.clearAllFamilyMembers()
                 repository.clearAllCreditCards()
+                repository.clearAllCustomWallets()
                 repository.clearAllTransactions()
                 repository.clearAllBudgetGoals()
                 repository.clearAllSavingsGoals()
@@ -896,6 +993,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
 
                 supMembers.forEach { repository.insertFamilyMember(it.toRoom()) }
                 supCards.forEach { repository.insertCreditCard(it.toRoom()) }
+                supCustomWallets.forEach { repository.insertCustomWallet(it.toRoom()) }
                 supTxs.forEach { repository.insertTransaction(it.toRoom()) }
                 supGoals.forEach { repository.insertBudgetGoal(it.toRoom()) }
                 supSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
@@ -951,6 +1049,7 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
 
                 val localMembers = repository.allFamilyMembers.first()
                 val localCards = repository.allCreditCards.first()
+                val localCustomWallets = repository.allCustomWallets.first()
                 val localTxs = repository.allTransactions.first()
                 val localGoals = repository.allBudgetGoals.first()
                 val localSavingsGoals = repository.allSavingsGoals.first()
@@ -965,6 +1064,11 @@ class HisabViewModel(private val repository: HisabRepository) : ViewModel() {
                 if (localCards.isNotEmpty()) {
                     localCards.map { it.toSupabase() }.chunked(batchSize).forEach { chunk ->
                         api.upsertCreditCards(chunk)
+                    }
+                }
+                if (localCustomWallets.isNotEmpty()) {
+                    localCustomWallets.map { it.toSupabase() }.chunked(batchSize).forEach { chunk ->
+                        api.upsertCustomWallets(chunk)
                     }
                 }
                 if (localTxs.isNotEmpty()) {

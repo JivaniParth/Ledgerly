@@ -61,10 +61,18 @@ data class SupabaseFamilyMember(
 
 @JsonClass(generateAdapter = true)
 data class SupabaseCreditCard(
-    @Json(name = "id") val id: Long,
+    val id: Long? = null,
     @Json(name = "card_name") val cardName: String?,
     @Json(name = "owner_name") val ownerName: String?,
-    @Json(name = "credit_limit") val creditLimit: Double?
+    @Json(name = "credit_limit") val creditLimit: Double?,
+    val color: String? = "#E91E63"
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseCustomWallet(
+    @Json(name = "id") val id: Long,
+    @Json(name = "name") val name: String?,
+    @Json(name = "color") val color: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -80,7 +88,9 @@ data class SupabaseTransaction(
     @Json(name = "direction") val direction: String?,
     @Json(name = "category") val category: String?,
     @Json(name = "credit_card_id") val creditCardId: Long?,
-    @Json(name = "recurring_transaction_id") val recurringTransactionId: Long?
+    @Json(name = "recurring_transaction_id") val recurringTransactionId: Long?,
+    @Json(name = "custom_wallet_id") val customWalletId: Long?,
+    @Json(name = "destination_custom_wallet_id") val destinationCustomWalletId: Long?
 )
 
 @JsonClass(generateAdapter = true)
@@ -116,8 +126,11 @@ data class SupabaseRecurringTransaction(
 fun FamilyMember.toSupabase() = SupabaseFamilyMember(id, name, relationship)
 fun SupabaseFamilyMember.toRoom() = FamilyMember(id, name ?: "", relationship ?: "")
 
-fun CreditCard.toSupabase() = SupabaseCreditCard(id, cardName, ownerName, creditLimit)
-fun SupabaseCreditCard.toRoom() = CreditCard(id, cardName ?: "", ownerName ?: "", creditLimit ?: 0.0)
+fun CreditCard.toSupabase() = SupabaseCreditCard(id, cardName, ownerName, creditLimit, color)
+fun SupabaseCreditCard.toRoom() = CreditCard(id ?: 0, cardName ?: "", ownerName ?: "", creditLimit ?: 0.0, color ?: "#E91E63")
+
+fun CustomWallet.toSupabase() = SupabaseCustomWallet(id, name, color)
+fun SupabaseCustomWallet.toRoom() = CustomWallet(id, name ?: "", color ?: "")
 
 fun Transaction.toSupabase() = SupabaseTransaction(
     id = id,
@@ -131,7 +144,9 @@ fun Transaction.toSupabase() = SupabaseTransaction(
     direction = direction?.name,
     category = category,
     creditCardId = creditCardId,
-    recurringTransactionId = recurringTransactionId
+    recurringTransactionId = recurringTransactionId,
+    customWalletId = customWalletId,
+    destinationCustomWalletId = destinationCustomWalletId
 )
 fun SupabaseTransaction.toRoom(): Transaction {
     val tType = try {
@@ -159,6 +174,8 @@ fun SupabaseTransaction.toRoom(): Transaction {
             WalletType.SAVINGS_WALLET
         } else if (cleaned.contains("CREDIT")) {
             WalletType.CREDIT_CARD
+        } else if (cleaned.contains("TEMPORARY") || cleaned.contains("CUSTOM")) {
+            WalletType.TEMPORARY_WALLET
         } else {
             WalletType.valueOf(cleaned)
         }
@@ -175,6 +192,8 @@ fun SupabaseTransaction.toRoom(): Transaction {
                 WalletType.SAVINGS_WALLET
             } else if (cleaned.contains("CREDIT")) {
                 WalletType.CREDIT_CARD
+            } else if (cleaned.contains("TEMPORARY") || cleaned.contains("CUSTOM")) {
+                WalletType.TEMPORARY_WALLET
             } else {
                 WalletType.valueOf(cleaned)
             }
@@ -209,7 +228,9 @@ fun SupabaseTransaction.toRoom(): Transaction {
         direction = dir,
         category = category ?: "Other",
         creditCardId = creditCardId,
-        recurringTransactionId = recurringTransactionId
+        recurringTransactionId = recurringTransactionId,
+        customWalletId = customWalletId,
+        destinationCustomWalletId = destinationCustomWalletId
     )
 }
 
@@ -281,6 +302,17 @@ interface SupabaseApi {
 
     @DELETE("rest/v1/credit_cards")
     suspend fun deleteCreditCard(@Query("id") query: String)
+
+    // 2.5 Custom Wallets
+    @GET("rest/v1/custom_wallets")
+    suspend fun getCustomWallets(@Query("select") select: String = "*"): List<SupabaseCustomWallet>
+
+    @Headers("Prefer: resolution=merge-duplicates,return=minimal")
+    @POST("rest/v1/custom_wallets")
+    suspend fun upsertCustomWallets(@Body wallets: List<SupabaseCustomWallet>)
+
+    @DELETE("rest/v1/custom_wallets")
+    suspend fun deleteCustomWallet(@Query("id") query: String)
 
     // 3. Transactions
     @GET("rest/v1/transactions")

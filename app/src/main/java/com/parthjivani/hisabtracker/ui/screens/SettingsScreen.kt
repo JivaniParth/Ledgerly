@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.parthjivani.hisabtracker.ui.components.AmountInputField
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -570,16 +571,13 @@ fun SettingsScreen(
                                 }
                             }
 
-                            OutlinedTextField(
+                            AmountInputField(
                                 value = newGoalLimit,
                                 onValueChange = { newGoalLimit = it },
                                 label = { Text("Limit (₹)", fontSize = 11.sp) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier
                                     .weight(1.2f)
-                                    .testTag("budget_goal_limit_input"),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                    .testTag("budget_goal_limit_input")
                             )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
@@ -613,12 +611,10 @@ fun SettingsScreen(
                                     text = {
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("Category: ${editingGoal!!.category}", fontWeight = FontWeight.Bold)
-                                            OutlinedTextField(
+                                            AmountInputField(
                                                 value = editLimit,
                                                 onValueChange = { editLimit = it },
-                                                label = { Text("Limit (₹)") },
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                singleLine = true
+                                                label = { Text("Limit (₹)") }
                                             )
                                         }
                                     },
@@ -684,8 +680,8 @@ fun SettingsScreen(
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(value = edName, onValueChange = { edName = it }, label = { Text("Goal Name") }, singleLine = true)
-                                OutlinedTextField(value = edTarget, onValueChange = { edTarget = it }, label = { Text("Target Amount") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                                OutlinedTextField(value = edCurrent, onValueChange = { edCurrent = it }, label = { Text("Current Saved") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                                AmountInputField(value = edTarget, onValueChange = { edTarget = it }, label = { Text("Target Amount") })
+                                AmountInputField(value = edCurrent, onValueChange = { edCurrent = it }, label = { Text("Current Saved") })
                                 OutlinedTextField(value = edCategory, onValueChange = { edCategory = it }, label = { Text("Category") }, singleLine = true)
                             }
                         },
@@ -728,8 +724,8 @@ fun SettingsScreen(
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Goal Name (e.g. Bike)") }, singleLine = true)
-                                    OutlinedTextField(value = target, onValueChange = { target = it }, label = { Text("Target Amount") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                                    OutlinedTextField(value = current, onValueChange = { current = it }, label = { Text("Current Saved (Optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                                    AmountInputField(value = target, onValueChange = { target = it }, label = { Text("Target Amount") })
+                                    AmountInputField(value = current, onValueChange = { current = it }, label = { Text("Current Saved (Optional)") })
                                     OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category (Overall or Specific)") }, singleLine = true)
                                 }
                             },
@@ -805,16 +801,13 @@ fun SettingsScreen(
                             newRecCategory = "Other"
                         }
 
-                        OutlinedTextField(
+                        AmountInputField(
                             value = newRecAmount,
                             onValueChange = { newRecAmount = it },
                             label = { Text("Amount (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("recurring_amount_input"),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp)
+                                .testTag("recurring_amount_input")
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1027,12 +1020,10 @@ fun SettingsScreen(
                                     title = { Text("Edit Recurring Flow", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
                                     text = {
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedTextField(
+                                            AmountInputField(
                                                 value = edAmount,
                                                 onValueChange = { edAmount = it },
-                                                label = { Text("Amount") },
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                singleLine = true
+                                                label = { Text("Amount") }
                                             )
                                             OutlinedTextField(
                                                 value = edNotes,

@@ -208,7 +208,8 @@ fun MainAppContainer(viewModel: HisabViewModel) {
                         viewModel = viewModel
                     )
                     AppScreen.WALLETS -> WalletsScreen(
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        onNavigateToTransactions = { navigateTo(AppScreen.TRANSACTIONS) }
                     )
                     AppScreen.TRANSACTIONS -> TransactionsScreen(
                         viewModel = viewModel,
@@ -224,11 +225,11 @@ fun MainAppContainer(viewModel: HisabViewModel) {
                     AppScreen.ENTRY -> TransactionEntryScreen(
                         familyMembers = familyMembers,
                         editingTransaction = editingTransaction,
-                        onSubmitTransaction = { amount, notes, type, source, dest, memberId, dir, date, category, creditCardId ->
+                        onSubmitTransaction = { amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId ->
                             if (editingTransaction != null) {
-                                viewModel.updateTransaction(editingTransaction!!.id, amount, notes, type, source, dest, memberId, dir, date, category, creditCardId)
+                                viewModel.updateTransaction(editingTransaction!!.id, amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId)
                             } else {
-                                viewModel.addTransaction(amount, notes, type, source, dest, memberId, dir, date, category, creditCardId)
+                                viewModel.addTransaction(amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId)
                             }
                             editingTransaction = null
 
@@ -247,10 +248,20 @@ fun MainAppContainer(viewModel: HisabViewModel) {
                     AppScreen.FAMILY -> FamilyHubScreen(
                         familyMembers = familyMembers,
                         transactions = transactions,
-                        onAddNewMember = { name, relationship ->
-                            viewModel.addFamilyMember(name, relationship)
+                        viewModel = viewModel,
+                        onAddNewMember = { name, relation ->
+                            viewModel.addFamilyMember(name, relation)
                         },
-                        viewModel = viewModel
+                        onFamilyMemberClick = { memberId ->
+                            viewModel.setTxMemberFilter(memberId)
+                            viewModel.setTxCardFilter(null)
+                            navigateTo(AppScreen.TRANSACTIONS)
+                        },
+                        onCreditCardClick = { cardId ->
+                            viewModel.setTxCardFilter(cardId)
+                            viewModel.setTxMemberFilter(null)
+                            navigateTo(AppScreen.TRANSACTIONS)
+                        }
                     )
                     AppScreen.PROJECTOR -> AnalyticsScreen(
                         transactions = transactions,
@@ -351,24 +362,33 @@ fun BalanceCard(
     // Credit card  → Teal card
     val isExpense = title.contains("Expense", ignoreCase = true) && !title.contains("Credit", ignoreCase = true)
     val isCredit = title.contains("Credit", ignoreCase = true)
-    val cardBgColor = when {
+    val isMainSavings = title.contains("Savings", ignoreCase = true)
+    
+    // Instead of hardcoding, use the provided gradient colors for the background.
+    // Dashboard and Wallets screens already pass parsed custom colors here!
+    val cardBgColor = if (gradientColors.isNotEmpty()) gradientColors.first() else when {
         isCredit  -> FinanceTeal
         isExpense -> FinanceBlue
         else      -> FinanceGreen
     }
+    
     val contentColor = Color(0xFFFFFFFF)
     val dotColor = contentColor.copy(alpha = 0.6f)
-    // Tag label: EXPENSE / CREDIT / SAVINGS
+    
+    // Tag label: EXPENSE / CREDIT / SAVINGS / TEMP
     val tagLabel = when {
         isCredit  -> "CREDIT"
         isExpense -> "EXPENSE"
-        else      -> "SAVINGS"
+        isMainSavings -> "SAVINGS"
+        else      -> "TEMP WALLET"
     }
+    
     // Bottom descriptor (cardInfo takes priority for credit cards)
     val desc = cardInfo ?: when {
         isCredit  -> "Total card charges"
         isExpense -> "Daily & bills wallet"
-        else      -> "Long-term savings"
+        isMainSavings -> "Long-term savings"
+        else      -> "Events/Trips"
     }
 
     Card(

@@ -8,7 +8,7 @@ plugins {
 
 android {
   namespace = "com.parthjivani.hisabtracker"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.parthjivani.hisabtracker"
@@ -16,8 +16,9 @@ android {
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
+    multiDexEnabled = true
 
-    setProperty("archivesBaseName", "hisab-tracker")
+    base.archivesName.set("hisab-tracker")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -43,8 +44,8 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
   }
   buildFeatures {
     compose = true
@@ -89,7 +90,6 @@ dependencies {
   implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)
-  implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.parthjivani.hisabtracker.ui.components.AmountInputField
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,12 +51,13 @@ import com.parthjivani.hisabtracker.ui.theme.*
 fun TransactionEntryScreen(
     familyMembers: List<FamilyMember>,
     editingTransaction: Transaction? = null,
-    onSubmitTransaction: (amount: Double, notes: String, type: TransactionType, source: WalletType, dest: WalletType?, memberId: Long?, dir: TransactionDirection?, date: Long, category: String, creditCardId: Long?) -> Unit,
+    onSubmitTransaction: (amount: Double, notes: String, type: TransactionType, source: WalletType, dest: WalletType?, memberId: Long?, dir: TransactionDirection?, date: Long, category: String, creditCardId: Long?, customWalletId: Long?, destinationCustomWalletId: Long?) -> Unit,
     onNavigateToFamily: () -> Unit,
     viewModel: HisabViewModel
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val creditCards by viewModel.allCreditCards.collectAsState()
+    val customWallets by viewModel.allCustomWallets.collectAsState()
 
     val initialAmount = editingTransaction?.let {
         if (it.amount % 1.0 == 0.0) it.amount.toInt().toString() else it.amount.toString()
@@ -141,6 +143,21 @@ fun TransactionEntryScreen(
     var walletTransferDest by remember(editingTransaction) { mutableStateOf(initialWalletTransferDest) }
     var selectedRepayCreditCard by remember(editingTransaction, creditCards) { mutableStateOf(initialSelectedRepayCreditCard ?: creditCards.firstOrNull()) }
 
+    var selectedCustomWalletSource by remember(editingTransaction, customWallets) { 
+        mutableStateOf(
+            editingTransaction?.let { t -> 
+                if (t.sourceWallet == WalletType.TEMPORARY_WALLET) customWallets.find { it.id == t.customWalletId } else null 
+            } ?: customWallets.firstOrNull()
+        ) 
+    }
+    var selectedCustomWalletDest by remember(editingTransaction, customWallets) { 
+        mutableStateOf(
+            editingTransaction?.let { t -> 
+                if (t.destinationWallet == WalletType.TEMPORARY_WALLET) customWallets.find { it.id == t.destinationCustomWalletId } else null 
+            } ?: customWallets.firstOrNull()
+        ) 
+    }
+
     // Form errors
     var amountError by remember { mutableStateOf<String?>(null) }
     var familyError by remember { mutableStateOf<String?>(null) }
@@ -184,6 +201,15 @@ fun TransactionEntryScreen(
         }
     }
 
+    LaunchedEffect(customWallets) {
+        if (selectedCustomWalletSource == null && customWallets.isNotEmpty()) {
+            selectedCustomWalletSource = customWallets.first()
+        }
+        if (selectedCustomWalletDest == null && customWallets.isNotEmpty()) {
+            selectedCustomWalletDest = customWallets.first()
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -209,6 +235,7 @@ fun TransactionEntryScreen(
                 .fillMaxSize()
                 .padding(p)
                 .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
                 .testTag("entry_screen")
         ) {
             // Main tabs selector
@@ -249,7 +276,7 @@ fun TransactionEntryScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Amount Input Field
-            OutlinedTextField(
+            AmountInputField(
                 value = amountStr,
                 onValueChange = {
                     amountStr = it
@@ -258,15 +285,10 @@ fun TransactionEntryScreen(
                     }
                 },
                 label = { Text("Amount (₹)") },
-                placeholder = { Text("Enter Transaction Amount") },
                 isError = amountError != null,
-                supportingText = { amountError?.let { Text(it, color = MaterialTheme.colorScheme.error) } },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("amount_field"),
-                shape = RoundedCornerShape(14.dp)
+                    .testTag("amount_field")
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -379,7 +401,7 @@ fun TransactionEntryScreen(
                     ) {
                         Text("Source Wallet / Pay via:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Surface(
@@ -388,10 +410,11 @@ fun TransactionEntryScreen(
                                 border = androidx.compose.foundation.BorderStroke(if (selectedExpenseWalletType == WalletType.EXPENSE_WALLET) 2.dp else 1.dp, if (selectedExpenseWalletType == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Gray.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .weight(1f)
+                                    .fillMaxHeight()
                                     .clickable { selectedExpenseWalletType = WalletType.EXPENSE_WALLET }
                             ) {
                                 Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                                    Text("Expense Wallet", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (selectedExpenseWalletType == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Unspecified)
+                                    Text("Expense Wallet", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (selectedExpenseWalletType == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 }
                             }
 
@@ -401,10 +424,79 @@ fun TransactionEntryScreen(
                                 border = androidx.compose.foundation.BorderStroke(if (selectedExpenseWalletType == WalletType.CREDIT_CARD) 2.dp else 1.dp, if (selectedExpenseWalletType == WalletType.CREDIT_CARD) TealGreenPrimary else Color.Gray.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .weight(1f)
+                                    .fillMaxHeight()
                                     .clickable { selectedExpenseWalletType = WalletType.CREDIT_CARD }
                             ) {
                                 Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                                    Text("Credit Card", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (selectedExpenseWalletType == WalletType.CREDIT_CARD) TealGreenPrimary else Color.Unspecified)
+                                    Text("Credit Card", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (selectedExpenseWalletType == WalletType.CREDIT_CARD) TealGreenPrimary else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                }
+                            }
+                            
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) FinanceTeal.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                border = androidx.compose.foundation.BorderStroke(if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) 2.dp else 1.dp, if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) FinanceTeal else Color.Gray.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { selectedExpenseWalletType = WalletType.TEMPORARY_WALLET }
+                            ) {
+                                Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
+                                    Text("Temporary", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) FinanceTeal else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                }
+                            }
+                        }
+
+                        if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) {
+                            if (customWallets.isEmpty()) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
+                                ) {
+                                    Text(
+                                        text = "⚠️ No Temporary Wallets found. Create one in Wallets screen.",
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(12.dp),
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            } else {
+                                Text("Select Temporary Wallet:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                var customWalletDropdownExpanded by remember { mutableStateOf(false) }
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedButton(
+                                        onClick = { customWalletDropdownExpanded = true },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = selectedCustomWalletSource?.name ?: "Select Wallet",
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = customWalletDropdownExpanded,
+                                        onDismissRequest = { customWalletDropdownExpanded = false },
+                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                    ) {
+                                        customWallets.forEach { cw ->
+                                            DropdownMenuItem(
+                                                text = { Text(cw.name) },
+                                                onClick = {
+                                                    selectedCustomWalletSource = cw
+                                                    customWalletDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -495,7 +587,7 @@ fun TransactionEntryScreen(
                     Text("Select Wallet to Deposit Money:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Surface(
@@ -504,15 +596,17 @@ fun TransactionEntryScreen(
                             border = androidx.compose.foundation.BorderStroke(if (incomeDepositWallet == WalletType.EXPENSE_WALLET) 2.dp else 1.dp, if (incomeDepositWallet == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Gray.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .weight(1f)
+                                .fillMaxHeight()
                                 .clickable { incomeDepositWallet = WalletType.EXPENSE_WALLET }
                                 .testTag("select_income_expense_wallet")
                         ) {
                             Column(
                                 modifier = Modifier.padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Text("Expense Wallet", fontWeight = FontWeight.Bold, color = if (incomeDepositWallet == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Unspecified)
-                                Text("For immediate spending", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Expense Wallet", fontWeight = FontWeight.Bold, color = if (incomeDepositWallet == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                Text("For immediate spending", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }
 
@@ -522,15 +616,90 @@ fun TransactionEntryScreen(
                             border = androidx.compose.foundation.BorderStroke(if (incomeDepositWallet == WalletType.SAVINGS_WALLET) 2.dp else 1.dp, if (incomeDepositWallet == WalletType.SAVINGS_WALLET) SavingsColor else Color.Gray.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .weight(1f)
+                                .fillMaxHeight()
                                 .clickable { incomeDepositWallet = WalletType.SAVINGS_WALLET }
                                 .testTag("select_income_savings_wallet")
                         ) {
                             Column(
                                 modifier = Modifier.padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Text("Savings Wallet", fontWeight = FontWeight.Bold, color = if (incomeDepositWallet == WalletType.SAVINGS_WALLET) SavingsColor else Color.Unspecified)
-                                Text("Long term savings", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Savings Wallet", fontWeight = FontWeight.Bold, color = if (incomeDepositWallet == WalletType.SAVINGS_WALLET) SavingsColor else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                Text("Long term savings", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+                        
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) FinanceTeal.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = androidx.compose.foundation.BorderStroke(if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) 2.dp else 1.dp, if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) FinanceTeal else Color.Gray.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { incomeDepositWallet = WalletType.TEMPORARY_WALLET }
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("Temp Wallet", fontWeight = FontWeight.Bold, color = if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) FinanceTeal else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                Text("Events/Trips", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+                    }
+
+                    if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) {
+                        if (customWallets.isEmpty()) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = "⚠️ No Temporary Wallets found. Create one in Wallets screen.",
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(12.dp),
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        } else {
+                            Text("Select Temporary Wallet:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 8.dp))
+                            var customWalletDropdownExpanded by remember { mutableStateOf(false) }
+                            Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                                OutlinedButton(
+                                    onClick = { customWalletDropdownExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = selectedCustomWalletSource?.name ?: "Select Wallet",
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = customWalletDropdownExpanded,
+                                    onDismissRequest = { customWalletDropdownExpanded = false },
+                                    modifier = Modifier.fillMaxWidth(0.9f)
+                                ) {
+                                    customWallets.forEach { cw ->
+                                        DropdownMenuItem(
+                                            text = { Text(cw.name) },
+                                            onClick = {
+                                                selectedCustomWalletSource = cw
+                                                customWalletDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -675,7 +844,7 @@ fun TransactionEntryScreen(
                     Text("Wallet Selector (Which wallet gets affected):", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Surface(
@@ -684,11 +853,12 @@ fun TransactionEntryScreen(
                             border = androidx.compose.foundation.BorderStroke(if (familyTargetWallet == WalletType.EXPENSE_WALLET) 2.dp else 1.dp, if (familyTargetWallet == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Gray.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .weight(1f)
+                                .fillMaxHeight()
                                 .clickable { familyTargetWallet = WalletType.EXPENSE_WALLET }
                                 .testTag("apply_expense_wallet")
                         ) {
                             Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                                Text("Apply to Expense Wallet", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = if (familyTargetWallet == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Unspecified)
+                                Text("Apply to Expense Wallet", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = if (familyTargetWallet == WalletType.EXPENSE_WALLET) ExpenseColor else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }
 
@@ -698,126 +868,183 @@ fun TransactionEntryScreen(
                             border = androidx.compose.foundation.BorderStroke(if (familyTargetWallet == WalletType.SAVINGS_WALLET) 2.dp else 1.dp, if (familyTargetWallet == WalletType.SAVINGS_WALLET) SavingsColor else Color.Gray.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .weight(1f)
+                                .fillMaxHeight()
                                 .clickable { familyTargetWallet = WalletType.SAVINGS_WALLET }
                                 .testTag("apply_savings_wallet")
                         ) {
                             Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                                Text("Apply to Savings Wallet", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = if (familyTargetWallet == WalletType.SAVINGS_WALLET) SavingsColor else Color.Unspecified)
+                                Text("Savings", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = if (familyTargetWallet == WalletType.SAVINGS_WALLET) SavingsColor else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+                        
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (familyTargetWallet == WalletType.TEMPORARY_WALLET) FinanceTeal.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = androidx.compose.foundation.BorderStroke(if (familyTargetWallet == WalletType.TEMPORARY_WALLET) 2.dp else 1.dp, if (familyTargetWallet == WalletType.TEMPORARY_WALLET) FinanceTeal else Color.Gray.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { familyTargetWallet = WalletType.TEMPORARY_WALLET }
+                        ) {
+                            Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
+                                Text("Temporary", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = if (familyTargetWallet == WalletType.TEMPORARY_WALLET) FinanceTeal else Color.Unspecified, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+                    }
+                    
+                    if (familyTargetWallet == WalletType.TEMPORARY_WALLET) {
+                        if (customWallets.isEmpty()) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = "⚠️ No Temporary Wallets found. Create one in Wallets screen.",
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(12.dp),
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        } else {
+                            Text("Select Temporary Wallet:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 8.dp))
+                            var customWalletDropdownExpanded by remember { mutableStateOf(false) }
+                            Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                                OutlinedButton(
+                                    onClick = { customWalletDropdownExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = selectedCustomWalletSource?.name ?: "Select Wallet",
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = customWalletDropdownExpanded,
+                                    onDismissRequest = { customWalletDropdownExpanded = false },
+                                    modifier = Modifier.fillMaxWidth(0.9f)
+                                ) {
+                                    customWallets.forEach { cw ->
+                                        DropdownMenuItem(
+                                            text = { Text(cw.name) },
+                                            onClick = {
+                                                selectedCustomWalletSource = cw
+                                                customWalletDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                3 -> { // WALLET TRANSFER (Operational & Credit Card dues payback)
+                3 -> { // WALLET TRANSFER
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("Select Transfer Type:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (walletTransferSource == WalletType.EXPENSE_WALLET && walletTransferDest == WalletType.SAVINGS_WALLET) ExpenseColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = androidx.compose.foundation.BorderStroke(if (walletTransferSource == WalletType.EXPENSE_WALLET && walletTransferDest == WalletType.SAVINGS_WALLET) 2.dp else 1.dp, if (walletTransferSource == WalletType.EXPENSE_WALLET && walletTransferDest == WalletType.SAVINGS_WALLET) ExpenseColor else Color.Gray.copy(alpha = 0.5f)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        walletTransferSource = WalletType.EXPENSE_WALLET
-                                        walletTransferDest = WalletType.SAVINGS_WALLET
-                                    }
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Expense ➔ Savings", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    Text("Deduct from Daily Expense", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Source Selection
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Transfer From:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(WalletType.EXPENSE_WALLET, WalletType.SAVINGS_WALLET, WalletType.TEMPORARY_WALLET).forEach { wType ->
+                                    val isSelected = walletTransferSource == wType
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { walletTransferSource = wType },
+                                        label = { 
+                                            Text(
+                                                when(wType) {
+                                                    WalletType.EXPENSE_WALLET -> "Expense"
+                                                    WalletType.SAVINGS_WALLET -> "Savings"
+                                                    else -> "Temporary"
+                                                }
+                                            ) 
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                                    )
                                 }
                             }
-
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (walletTransferSource == WalletType.SAVINGS_WALLET && walletTransferDest == WalletType.EXPENSE_WALLET) SavingsColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = androidx.compose.foundation.BorderStroke(if (walletTransferSource == WalletType.SAVINGS_WALLET && walletTransferDest == WalletType.EXPENSE_WALLET) 2.dp else 1.dp, if (walletTransferSource == WalletType.SAVINGS_WALLET && walletTransferDest == WalletType.EXPENSE_WALLET) SavingsColor else Color.Gray.copy(alpha = 0.5f)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        walletTransferSource = WalletType.SAVINGS_WALLET
-                                        walletTransferDest = WalletType.EXPENSE_WALLET
+                            if (walletTransferSource == WalletType.TEMPORARY_WALLET) {
+                                if (customWallets.isEmpty()) {
+                                    Text("⚠️ No Temporary Wallets found.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                } else {
+                                    var srcDropdownExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        OutlinedButton(onClick = { srcDropdownExpanded = true }) {
+                                            Text(selectedCustomWalletSource?.name ?: "Select Wallet")
+                                        }
+                                        DropdownMenu(expanded = srcDropdownExpanded, onDismissRequest = { srcDropdownExpanded = false }) {
+                                            customWallets.forEach { cw ->
+                                                DropdownMenuItem(text = { Text(cw.name) }, onClick = { selectedCustomWalletSource = cw; srcDropdownExpanded = false })
+                                            }
+                                        }
                                     }
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Savings ➔ Expense", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    Text("Top up Daily Expense", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (walletTransferDest == WalletType.CREDIT_CARD) TealGreenPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = androidx.compose.foundation.BorderStroke(if (walletTransferDest == WalletType.CREDIT_CARD) 2.dp else 1.dp, if (walletTransferDest == WalletType.CREDIT_CARD) TealGreenPrimary else Color.Gray.copy(alpha = 0.5f)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        walletTransferSource = WalletType.EXPENSE_WALLET
-                                        walletTransferDest = WalletType.CREDIT_CARD
-                                    }
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Repay Card", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TealGreenPrimary)
-                                    Text("Expense ➔ Card Dues", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
 
-                        if (walletTransferDest == WalletType.CREDIT_CARD) {
-                            if (creditCards.isEmpty()) {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToFamily() },
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
-                                ) {
-                                    Text(
-                                        text = "⚠️ No Credit Cards registered. Tap here to add your first credit card.",
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(12.dp),
-                                        color = MaterialTheme.colorScheme.onErrorContainer
+                        // Dest Selection
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Transfer To:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(WalletType.EXPENSE_WALLET, WalletType.SAVINGS_WALLET, WalletType.CREDIT_CARD, WalletType.TEMPORARY_WALLET).forEach { wType ->
+                                    val isSelected = walletTransferDest == wType
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { walletTransferDest = wType },
+                                        label = { 
+                                            Text(
+                                                when(wType) {
+                                                    WalletType.EXPENSE_WALLET -> "Expense"
+                                                    WalletType.SAVINGS_WALLET -> "Savings"
+                                                    WalletType.CREDIT_CARD -> "Credit Card (Repay)"
+                                                    else -> "Temporary"
+                                                }
+                                            ) 
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
                                     )
                                 }
-                            } else {
-                                Text("Select Card to Pay off Dues:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                                var cardRepayMenuExpanded by remember { mutableStateOf(false) }
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    OutlinedButton(
-                                        onClick = { cardRepayMenuExpanded = true },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = selectedRepayCreditCard?.let { "${it.cardName} (${it.ownerName})" } ?: "Select Card",
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                            }
+                            if (walletTransferDest == WalletType.TEMPORARY_WALLET) {
+                                if (customWallets.isEmpty()) {
+                                    Text("⚠️ No Temporary Wallets found.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                } else {
+                                    var destDropdownExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        OutlinedButton(onClick = { destDropdownExpanded = true }) {
+                                            Text(selectedCustomWalletDest?.name ?: "Select Wallet")
+                                        }
+                                        DropdownMenu(expanded = destDropdownExpanded, onDismissRequest = { destDropdownExpanded = false }) {
+                                            customWallets.forEach { cw ->
+                                                DropdownMenuItem(text = { Text(cw.name) }, onClick = { selectedCustomWalletDest = cw; destDropdownExpanded = false })
+                                            }
                                         }
                                     }
-                                    DropdownMenu(
-                                        expanded = cardRepayMenuExpanded,
-                                        onDismissRequest = { cardRepayMenuExpanded = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
-                                    ) {
-                                        creditCards.forEach { card ->
-                                            DropdownMenuItem(
-                                                text = { Text("${card.cardName} (${card.ownerName})") },
-                                                onClick = {
-                                                    selectedRepayCreditCard = card
-                                                    cardRepayMenuExpanded = false
-                                                }
-                                            )
+                                }
+                            }
+                            if (walletTransferDest == WalletType.CREDIT_CARD) {
+                                if (creditCards.isEmpty()) {
+                                    Text("⚠️ No Credit Cards registered.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                } else {
+                                    var cardDropdownExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        OutlinedButton(onClick = { cardDropdownExpanded = true }) {
+                                            Text(selectedRepayCreditCard?.cardName ?: "Select Card")
+                                        }
+                                        DropdownMenu(expanded = cardDropdownExpanded, onDismissRequest = { cardDropdownExpanded = false }) {
+                                            creditCards.forEach { card ->
+                                                DropdownMenuItem(text = { Text(card.cardName) }, onClick = { selectedRepayCreditCard = card; cardDropdownExpanded = false })
+                                            }
                                         }
                                     }
                                 }
@@ -847,23 +1074,24 @@ fun TransactionEntryScreen(
                     when (selectedTabIndex) {
                         0 -> { // Personal Expense (can be expense wallet vs credit card)
                             if (selectedExpenseWalletType == WalletType.CREDIT_CARD) {
-                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.CREDIT_CARD, null, null, null, transactionDate, selectedCategory, selectedCreditCard?.id)
+                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.CREDIT_CARD, null, null, null, transactionDate, selectedCategory, selectedCreditCard?.id, null, null)
+                            } else if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) {
+                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.TEMPORARY_WALLET, null, null, null, transactionDate, selectedCategory, null, selectedCustomWalletSource?.id, null)
                             } else {
-                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.EXPENSE_WALLET, null, null, null, transactionDate, selectedCategory, null)
+                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.EXPENSE_WALLET, null, null, null, transactionDate, selectedCategory, null, null, null)
                             }
                         }
                         1 -> { // Personal Income
-                            onSubmitTransaction(amount, notes, TransactionType.PERSONAL_INCOME, incomeDepositWallet, null, null, null, transactionDate, selectedCategory, null)
+                            onSubmitTransaction(amount, notes, TransactionType.PERSONAL_INCOME, incomeDepositWallet, null, null, null, transactionDate, selectedCategory, null, if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null)
                         }
                         2 -> { // Family Transfer
-                            onSubmitTransaction(amount, notes, TransactionType.FAMILY_TRANSFER, familyTargetWallet, null, familyMemberSelected!!.id, familyDirectionChoice, transactionDate, "Other", null)
+                            onSubmitTransaction(amount, notes, TransactionType.FAMILY_TRANSFER, familyTargetWallet, null, familyMemberSelected!!.id, familyDirectionChoice, transactionDate, "Other", null, if (familyTargetWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null)
                         }
                         3 -> { // Wallet Transfer
-                            if (walletTransferDest == WalletType.CREDIT_CARD) {
-                                onSubmitTransaction(amount, notes, TransactionType.WALLET_TRANSFER, WalletType.EXPENSE_WALLET, WalletType.CREDIT_CARD, null, null, transactionDate, "Other", selectedRepayCreditCard?.id)
-                            } else {
-                                onSubmitTransaction(amount, notes, TransactionType.WALLET_TRANSFER, walletTransferSource, walletTransferDest, null, null, transactionDate, "Other", null)
-                            }
+                            val cId = if (walletTransferSource == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null
+                            val destCId = if (walletTransferDest == WalletType.TEMPORARY_WALLET) selectedCustomWalletDest?.id else null
+                            val cardId = if (walletTransferDest == WalletType.CREDIT_CARD) selectedRepayCreditCard?.id else null
+                            onSubmitTransaction(amount, notes, TransactionType.WALLET_TRANSFER, walletTransferSource, walletTransferDest, null, null, transactionDate, "Other", cardId, cId, destCId)
                         }
                     }
                 },
@@ -883,3 +1111,4 @@ fun TransactionEntryScreen(
         }
     }
 }
+
