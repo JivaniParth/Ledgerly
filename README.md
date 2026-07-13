@@ -5,10 +5,12 @@ A feature-rich native Android application for personal finance management.
 ## Key Features
 
 ### 💰 Personal Finance Management
-- **Dashboard:** At-a-glance overview of your income, expenses, and current balances.
+- **Dashboard & Analytics:** At-a-glance overview of your income, expenses, and current balances. Features a dedicated Analytics screen for 90-day tracking and budget projections.
 - **Transactions:** Log daily expenses and incomes with categories. View historical data with robust filtering.
+- **Excel Import:** Seamlessly import transactions directly from Excel files, with intelligent table parsing and categorizations.
 - **Savings Goals:** Set target amounts for specific goals. Add to or withdraw from your savings, and track your progress visually.
-- **Credit Cards:** Manage credit cards securely, tracking spending and limits.
+- **Wallets & Credit Cards:** Manage multiple wallets including expense, savings, custom wallets, and securely track credit card limits.
+- **Family Hub:** Add family members and efficiently manage shared finances or inter-family transfers.
 
 ### 🔒 Security & Multi-User Architecture
 - **Authentication:** Secure login and sign-up flows.
