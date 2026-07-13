@@ -4,28 +4,41 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Card 1 Peeking Out (Back) -->
-    <path
-        android:fillColor="#21005D"
-        android:pathData="M48,22h22c1.7,0 3,1.3 3,3v10H45v-10c0,-1.7 1.3,-3 3,-3z" />
-    
-    <!-- Card 2 Peeking Out (Front) -->
-    <path
-        android:fillColor="#EADDFF"
-        android:pathData="M38,27h24c1.7,0 3,1.3 3,3v5H35v-5c0,-1.7 1.3,-3 3,-3z" />
 
-    <!-- Main Wallet Body -->
+    <!-- Ledger Page (Main body) -->
     <path
-        android:fillColor="#D0BCFF"
-        android:pathData="M32,34h44c3.3,0 6,2.7 6,6v28c0,3.3 -2.7,6 -6,6H32c-3.3,0 -6,-2.7 -6,-6V40c0,-3.3 2.7,-6 6,-6z" />
-        
-    <!-- Wallet Flap/Strap -->
+        android:fillColor="#F6F8FA"
+        android:pathData="M 34,22 
+                          H 66 
+                          L 78,34 
+                          V 82 
+                          A 4,4 0 0 1 74,86 
+                          H 34 
+                          A 4,4 0 0 1 30,82 
+                          V 26 
+                          A 4,4 0 0 1 34,22 Z" />
+
+    <!-- Folded corner shadow/triangle -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M64,47h18c2.2,0 4,1.8 4,4v8c0,2.2 -1.8,4 -4,4H64c-1.1,0 -2,-0.9 -2,-2V49c0,-1.1 0.9,-2 2,-2z" />
-        
-    <!-- Clasp Button -->
+        android:fillColor="#E1E4E8"
+        android:pathData="M 66,22 V 34 H 78 Z" />
+
+    <!-- Ruled lines (#1A56DB), decreasing width -->
     <path
-        android:fillColor="#381E72"
-        android:pathData="M74,55m-3,0A3,3 0,1,1 77,55A3,3 0,1,1 71,55" />
+        android:fillColor="#1A56DB"
+        android:pathData="M 38,45 H 70 V 48 H 38 Z" />
+    <path
+        android:fillColor="#1A56DB"
+        android:pathData="M 38,57 H 64 V 60 H 38 Z" />
+    <path
+        android:fillColor="#1A56DB"
+        android:pathData="M 38,69 H 54 V 72 H 38 Z" />
+
+    <!-- Upward trending green checkmark (#0D9E6A) at bottom right -->
+    <path
+        android:strokeColor="#0D9E6A"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 68,78 L 76,86 L 90,70" />
 </vector>

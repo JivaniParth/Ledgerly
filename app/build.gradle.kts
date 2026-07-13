@@ -7,18 +7,18 @@ plugins {
 }
 
 android {
-  namespace = "com.parthjivani.hisabtracker"
+  namespace = "com.parthjivani.ledgerly"
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.parthjivani.hisabtracker"
+    applicationId = "com.parthjivani.ledgerly"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
     multiDexEnabled = true
 
-    base.archivesName.set("hisab-tracker")
+    base.archivesName.set("ledgerly")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

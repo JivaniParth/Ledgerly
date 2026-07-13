@@ -1,4 +1,4 @@
-# Hisab & Expense Tracker
+# Ledgerly
 
 A feature-rich native Android application for personal finance management. 
 
