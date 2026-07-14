@@ -1,26 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
-            <gradient
-                android:startX="0"
-                android:startY="0"
-                android:endX="108"
-                android:endY="108"
-                android:type="linear">
-                <item android:offset="0" android:color="#0D1117"/>
-                <item android:offset="1" android:color="#161B22"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-    <!-- Optional subtle teal accent line across the top left corner -->
-    <path
-        android:pathData="M-10,30 L30,-10"
-        android:strokeWidth="2"
-        android:strokeColor="#260097A7"/>
-</vector>
+<!--
+    Ledgerly — Icon Background (Light Mode / Default)
+    Clean white background — lets the deep indigo symbol stand out sharply.
+    A very subtle warm-gray tint in the bottom-right corner adds depth
+    without being distracting.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+</shape>

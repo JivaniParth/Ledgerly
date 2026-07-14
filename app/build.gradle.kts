@@ -58,7 +58,7 @@ android {
 // to match the convention used in Web projects.
 secrets {
   propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
+  defaultPropertiesFileName = ".env"
 }
 
 // Some unused dependencies are commented out below instead of being removed.
