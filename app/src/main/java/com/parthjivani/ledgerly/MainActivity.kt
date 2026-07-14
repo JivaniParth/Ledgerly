@@ -27,20 +27,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Create custom_wallets table
-                database.execSQL("CREATE TABLE IF NOT EXISTS `custom_wallets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `color` TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `custom_wallets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `color` TEXT NOT NULL)")
                 
                 // Add columns to transactions
-                database.execSQL("ALTER TABLE `transactions` ADD COLUMN `customWalletId` INTEGER")
-                database.execSQL("ALTER TABLE `transactions` ADD COLUMN `destinationCustomWalletId` INTEGER")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `customWalletId` INTEGER")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `destinationCustomWalletId` INTEGER")
             }
         }
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Add color column to credit_cards
-                database.execSQL("ALTER TABLE `credit_cards` ADD COLUMN `color` TEXT NOT NULL DEFAULT '#E91E63'")
+                db.execSQL("ALTER TABLE `credit_cards` ADD COLUMN `color` TEXT NOT NULL DEFAULT '#E91E63'")
             }
         }
 
@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
             "ledgerly_database"
         )
         .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
-        .fallbackToDestructiveMigration()
+        .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
 
         repository = LedgerlyRepository(

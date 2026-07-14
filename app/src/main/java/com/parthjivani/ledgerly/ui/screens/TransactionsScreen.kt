@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -455,7 +457,7 @@ fun TransactionsScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = Icons.Outlined.ReceiptLong,
+                            imageVector = Icons.AutoMirrored.Outlined.ReceiptLong,
                             contentDescription = "No transactions matches filters",
                             modifier = Modifier.size(56.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -545,7 +547,7 @@ fun TransactionsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ReceiptLong,
+                        imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )

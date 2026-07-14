@@ -22,110 +22,110 @@ import com.parthjivani.ledgerly.BuildConfig
 
 @JsonClass(generateAdapter = true)
 data class SupabaseAuthRequest(
-    @Json(name = "email") val email: String,
-    @Json(name = "password") val password: String,
-    @Json(name = "data") val data: Map<String, String>? = null
+    @param:Json(name = "email") val email: String,
+    @param:Json(name = "password") val password: String,
+    @param:Json(name = "data") val data: Map<String, String>? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseAuthResponse(
-    @Json(name = "access_token") val access_token: String?,
-    @Json(name = "token_type") val token_type: String?,
-    @Json(name = "expires_in") val expires_in: Int?,
-    @Json(name = "refresh_token") val refresh_token: String?,
-    @Json(name = "user") val user: SupabaseUser?
+    @param:Json(name = "access_token") val access_token: String?,
+    @param:Json(name = "token_type") val token_type: String?,
+    @param:Json(name = "expires_in") val expires_in: Int?,
+    @param:Json(name = "refresh_token") val refresh_token: String?,
+    @param:Json(name = "user") val user: SupabaseUser?
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseUser(
-    @Json(name = "id") val id: String,
-    @Json(name = "email") val email: String?
+    @param:Json(name = "id") val id: String,
+    @param:Json(name = "email") val email: String?
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseUpdateUserRequest(
-    @Json(name = "password") val password: String
+    @param:Json(name = "password") val password: String
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseRefreshTokenRequest(
-    @Json(name = "refresh_token") val refresh_token: String
+    @param:Json(name = "refresh_token") val refresh_token: String
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseFamilyMember(
-    @Json(name = "id") val id: Long,
-    @Json(name = "name") val name: String?,
-    @Json(name = "relationship") val relationship: String?
+    @param:Json(name = "id") val id: Long,
+    @param:Json(name = "name") val name: String?,
+    @param:Json(name = "relationship") val relationship: String?
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseCreditCard(
     val id: Long? = null,
-    @Json(name = "card_name") val cardName: String?,
-    @Json(name = "owner_name") val ownerName: String?,
-    @Json(name = "credit_limit") val creditLimit: Double?,
+    @param:Json(name = "card_name") val cardName: String?,
+    @param:Json(name = "owner_name") val ownerName: String?,
+    @param:Json(name = "credit_limit") val creditLimit: Double?,
     val color: String? = "#E91E63"
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseCustomWallet(
-    @Json(name = "id") val id: Long,
-    @Json(name = "name") val name: String?,
-    @Json(name = "color") val color: String?
+    @param:Json(name = "id") val id: Long,
+    @param:Json(name = "name") val name: String?,
+    @param:Json(name = "color") val color: String?
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseTransaction(
-    @Json(name = "id") val id: Long,
-    @Json(name = "amount") val amount: Double?,
-    @Json(name = "date") val date: Long?,
-    @Json(name = "notes") val notes: String?,
-    @Json(name = "type") val type: String?,
-    @Json(name = "source_wallet") val sourceWallet: String?,
-    @Json(name = "destination_wallet") val destinationWallet: String?,
-    @Json(name = "family_member_id") val familyMemberId: Long?,
-    @Json(name = "direction") val direction: String?,
-    @Json(name = "category") val category: String?,
-    @Json(name = "credit_card_id") val creditCardId: Long?,
-    @Json(name = "recurring_transaction_id") val recurringTransactionId: Long?,
-    @Json(name = "custom_wallet_id") val customWalletId: Long?,
-    @Json(name = "destination_custom_wallet_id") val destinationCustomWalletId: Long?
+    @param:Json(name = "id") val id: Long,
+    @param:Json(name = "amount") val amount: Double?,
+    @param:Json(name = "date") val date: Long?,
+    @param:Json(name = "notes") val notes: String?,
+    @param:Json(name = "type") val type: String?,
+    @param:Json(name = "source_wallet") val sourceWallet: String?,
+    @param:Json(name = "destination_wallet") val destinationWallet: String?,
+    @param:Json(name = "family_member_id") val familyMemberId: Long?,
+    @param:Json(name = "direction") val direction: String?,
+    @param:Json(name = "category") val category: String?,
+    @param:Json(name = "credit_card_id") val creditCardId: Long?,
+    @param:Json(name = "recurring_transaction_id") val recurringTransactionId: Long?,
+    @param:Json(name = "custom_wallet_id") val customWalletId: Long?,
+    @param:Json(name = "destination_custom_wallet_id") val destinationCustomWalletId: Long?
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseSavingsGoal(
-    @Json(name = "id") val id: Long,
-    @Json(name = "name") val name: String,
-    @Json(name = "target_amount") val targetAmount: Double,
-    @Json(name = "current_amount") val currentAmount: Double,
-    @Json(name = "category") val category: String
+    @param:Json(name = "id") val id: Long,
+    @param:Json(name = "name") val name: String,
+    @param:Json(name = "target_amount") val targetAmount: Double,
+    @param:Json(name = "current_amount") val currentAmount: Double,
+    @param:Json(name = "category") val category: String
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseBudgetGoal(
-    @Json(name = "category") val category: String,
-    @Json(name = "limit_amount") val limitAmount: Double?
+    @param:Json(name = "category") val category: String,
+    @param:Json(name = "limit_amount") val limitAmount: Double?
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseCategory(
-    @Json(name = "name") val name: String,
-    @Json(name = "type") val type: String
+    @param:Json(name = "name") val name: String,
+    @param:Json(name = "type") val type: String
 )
 
 @JsonClass(generateAdapter = true)
 data class SupabaseRecurringTransaction(
-    @Json(name = "id") val id: Long,
-    @Json(name = "amount") val amount: Double?,
-    @Json(name = "notes") val notes: String?,
-    @Json(name = "type") val type: String?,
-    @Json(name = "source_wallet") val sourceWallet: String?,
-    @Json(name = "category") val category: String?,
-    @Json(name = "interval_type") val intervalType: String?,
-    @Json(name = "last_applied_date") val lastAppliedDate: Long?,
-    @Json(name = "next_due_date") val nextDueDate: Long?,
-    @Json(name = "is_active") val isActive: Boolean?
+    @param:Json(name = "id") val id: Long,
+    @param:Json(name = "amount") val amount: Double?,
+    @param:Json(name = "notes") val notes: String?,
+    @param:Json(name = "type") val type: String?,
+    @param:Json(name = "source_wallet") val sourceWallet: String?,
+    @param:Json(name = "category") val category: String?,
+    @param:Json(name = "interval_type") val intervalType: String?,
+    @param:Json(name = "last_applied_date") val lastAppliedDate: Long?,
+    @param:Json(name = "next_due_date") val nextDueDate: Long?,
+    @param:Json(name = "is_active") val isActive: Boolean?
 )
 
 // Extension converters

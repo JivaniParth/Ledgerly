@@ -254,7 +254,7 @@ fun AnalyticsScreen(
                     Text("Time Frame Span", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("3 Months (90 days)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Divider(modifier = Modifier.padding(vertical = 12.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween

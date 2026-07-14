@@ -30,4 +30,9 @@ out/
 .env.example
 local.properties
 
+# Keys
+my-upload-keys.jks
+my-upload-keys.keystore
+my-upload-keys
+
 /Screenshots

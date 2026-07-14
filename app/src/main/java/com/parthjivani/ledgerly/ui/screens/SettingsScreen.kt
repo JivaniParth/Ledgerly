@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -105,7 +106,7 @@ fun SettingsScreen(
                 modifier = Modifier.testTag("settings_back_button")
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = MaterialTheme.colorScheme.primary
                 )
@@ -267,7 +268,7 @@ fun SettingsScreen(
                             }
                         }
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
+                            imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
@@ -335,7 +336,7 @@ fun SettingsScreen(
                             }
                         }
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
+                            imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp)

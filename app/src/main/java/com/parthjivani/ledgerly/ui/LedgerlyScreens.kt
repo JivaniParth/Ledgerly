@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -53,7 +55,7 @@ enum class AppScreen(
 ) {
     DASHBOARD("Dashboard", Icons.Default.Dashboard, Icons.Outlined.Dashboard),
     WALLETS("Wallets", Icons.Default.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
-    TRANSACTIONS("Transactions", Icons.Default.ReceiptLong, Icons.Outlined.ReceiptLong),
+    TRANSACTIONS("Transactions", Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong),
     FAMILY("Family Hub", Icons.Default.People, Icons.Outlined.People),
     ENTRY("New Entry", Icons.Default.Add, Icons.Outlined.Add, isMainTab = false),
     PROJECTOR("Stats", Icons.Default.BarChart, Icons.Outlined.BarChart, isMainTab = false),

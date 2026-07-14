@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.FilePresent
 import androidx.compose.material3.*
@@ -178,7 +179,7 @@ fun ExcelImportScreen(
                         modifier = Modifier.testTag("excel_import_back_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -558,7 +559,7 @@ fun ExcelImportScreen(
                                                 .padding(top = 12.dp),
                                             verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                                             
                                             if (config.importType == TableImportType.EXPENSE || config.importType == TableImportType.INCOME) {
                                                 // Wallet selection Row
@@ -744,7 +745,7 @@ fun ExcelImportScreen(
                                                 Text("Category", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1.5f))
                                                 Text("Amount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1.5f), textAlign = TextAlign.End)
                                             }
-                                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
                                             
                                             // Display first 4 items as a preview
                                             table.rows.take(4).forEach { row ->
