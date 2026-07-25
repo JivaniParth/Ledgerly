@@ -55,6 +55,10 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+kotlin {
+  jvmToolchain(17)
+}
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {
