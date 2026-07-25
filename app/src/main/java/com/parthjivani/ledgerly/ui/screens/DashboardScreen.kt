@@ -667,7 +667,7 @@ fun DashboardScreen(
                                     }
                                     val percentage = if (sg.targetAmount > 0) (sg.currentAmount / sg.targetAmount * 100).toInt() else 0
                                     Text(
-                                        text = "${formatCurrency(sg.currentAmount)} is $percentage% of ${formatCurrency(sg.targetAmount)}",
+                                        text = "$percentage% saved",
                                         fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                                     )
