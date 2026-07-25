@@ -63,6 +63,7 @@ fun DashboardScreen(
     val savingsGoals by viewModel.allSavingsGoals.collectAsState()
     val creditCards by viewModel.allCreditCards.collectAsState()
     val expenseWalletColorHex by viewModel.expenseWalletColor.collectAsState()
+    val currentStreak by viewModel.currentStreak.collectAsState()
     val currentMillis = System.currentTimeMillis()
     val ninetyDaysAgo = currentMillis - (90L * 24L * 60L * 60L * 1000L)
 
@@ -108,13 +109,54 @@ fun DashboardScreen(
                 Column {
                     AppLogo()
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Dashboard",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        letterSpacing = (-0.5).sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Dashboard",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            letterSpacing = (-0.5).sp
+                        )
+                        // 🔥 Streak badge — shown when user has logged for 2+ consecutive days
+                        if (currentStreak >= 2) {
+                            Surface(
+                                shape = RoundedCornerShape(100.dp),
+                                color = FinanceGold.copy(alpha = 0.18f),
+                                modifier = Modifier.testTag("streak_badge")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text("🔥", fontSize = 13.sp)
+                                    Text(
+                                        text = "$currentStreak day streak!",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = FinanceGold
+                                    )
+                                }
+                            }
+                        } else if (currentStreak == 1) {
+                            Surface(
+                                shape = RoundedCornerShape(100.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.testTag("streak_badge")
+                            ) {
+                                Text(
+                                    text = "✅ Logged today!",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Row(
@@ -216,6 +258,11 @@ fun DashboardScreen(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
+                // Compute projection vs. Overall budget data
+                val overallBudgetGoal = budgetGoals.find { it.category.equals("Overall", ignoreCase = true) }
+                val projectedMonthly = totalSpending90Days / 3.0
+                val monthsOverBudget = viewModel.calculateMonthsOverBudget(transactions, budgetGoals)
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -262,7 +309,7 @@ fun DashboardScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = formatCurrency(totalSpending90Days / 3.0),
+                                text = formatCurrency(projectedMonthly),
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Light,
                                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
@@ -275,27 +322,118 @@ fun DashboardScreen(
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(5.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.secondaryContainer)
-                        ) {
+
+                        // Projection vs. Overall budget comparison
+                        if (overallBudgetGoal != null && overallBudgetGoal.limitAmount > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val diffPct = ((projectedMonthly - overallBudgetGoal.limitAmount) / overallBudgetGoal.limitAmount * 100)
+                            val projProgress = (projectedMonthly / overallBudgetGoal.limitAmount).toFloat()
+                            val projColor = when {
+                                projProgress > 1.0f -> FinanceRed
+                                projProgress > 0.85f -> FinanceGold
+                                else -> FinanceGreen
+                            }
+                            // Progress bar of projection vs. overall budget
                             Box(
                                 modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(0.65f)
-                                    .background(MaterialTheme.colorScheme.primary)
+                                    .fillMaxWidth()
+                                    .height(5.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(projProgress.coerceIn(0f, 1f))
+                                        .background(projColor)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = when {
+                                        diffPct > 0 -> "📈 Estimate is ${String.format("%.1f", diffPct)}% over budget"
+                                        diffPct < 0 -> "📉 Estimate is ${String.format("%.1f", -diffPct)}% under budget"
+                                        else -> "✅ Estimate matches budget"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = projColor
+                                )
+                                Text(
+                                    text = "Budget: ${formatCurrency(overallBudgetGoal.limitAmount)}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(5.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(0.65f)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Total outflows in last 90 days: ${formatCurrency(totalSpending90Days)}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Total outflows in last 90 days: ${formatCurrency(totalSpending90Days)}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        // Historical months over budget summary (only shown when there's an overall goal)
+                        if (overallBudgetGoal != null && monthsOverBudget > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("⚠️", fontSize = 12.sp)
+                                Text(
+                                    text = "Over budget in $monthsOverBudget of the last 6 months",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = FinanceGold
+                                )
+                            }
+                        } else if (overallBudgetGoal != null && monthsOverBudget == 0 && transactions.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("✅", fontSize = 12.sp)
+                                Text(
+                                    text = "Within budget every month for the last 6 months!",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = FinanceGreen
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -338,6 +476,7 @@ fun DashboardScreen(
                                 progress > 0.7f -> FinanceGold
                                 else -> FinanceGreen
                             }
+                            val usedPct = if (goal.limitAmount > 0) (categoryExpenses / goal.limitAmount * 100).toInt() else 0
 
                             Card(
                                 modifier = Modifier
@@ -404,6 +543,25 @@ fun DashboardScreen(
                                         color = progressColor,
                                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                                     )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    // Explicit % Used label
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "$usedPct% used",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = progressColor
+                                        )
+                                        Text(
+                                            text = if (progress < 1f) "${formatCurrency(goal.limitAmount - categoryExpenses)} left" else "${formatCurrency(categoryExpenses - goal.limitAmount)} over",
+                                            fontSize = 10.sp,
+                                            color = if (progress >= 1f) FinanceRed else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -532,6 +690,9 @@ fun DashboardScreen(
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
+                    // Resolve Overall budget goal for fallback usage in this section
+                    val overallGoalForBreakdown = budgetGoals.find { it.category.equals("Overall", ignoreCase = true) }
+
                     Card(
                         modifier = Modifier.fillMaxWidth().testTag("dashboard_category_breakdown"),
                         shape = RoundedCornerShape(16.dp),
@@ -544,43 +705,84 @@ fun DashboardScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             val maxAmount = categoryBreakdown.firstOrNull()?.second ?: 1.0
-                            categoryBreakdown.forEach { (category, amount) ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = category,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.width(100.dp)
+                            categoryBreakdown.forEachIndexed { index, (category, amount) ->
+                                if (index > 0) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
                                     )
+                                }
+                                // Find specific category budget or fall back to Overall budget
+                                val catGoal = budgetGoals.find { it.category.equals(category, ignoreCase = true) }
+                                val effectiveBudget = catGoal ?: overallGoalForBreakdown
+                                val budgetLabel = when {
+                                    catGoal != null -> "budget"
+                                    overallGoalForBreakdown != null -> "overall"
+                                    else -> null
+                                }
+                                val budgetPct = if (effectiveBudget != null && effectiveBudget.limitAmount > 0) {
+                                    (amount / effectiveBudget.limitAmount * 100).toInt()
+                                } else null
+                                val barColor = if (budgetPct != null) when {
+                                    budgetPct > 90 -> FinanceRed
+                                    budgetPct > 70 -> FinanceGold
+                                    else -> MaterialTheme.colorScheme.primary
+                                } else MaterialTheme.colorScheme.primary
+
+                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = category,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            if (budgetPct != null && budgetLabel != null) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(100.dp),
+                                                    color = barColor.copy(alpha = 0.15f)
+                                                ) {
+                                                    Text(
+                                                        text = "$budgetPct% of $budgetLabel",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = barColor,
+                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = formatCurrency(amount),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Box(
                                         modifier = Modifier
-                                            .weight(1f)
+                                            .fillMaxWidth()
                                             .height(6.dp)
                                             .clip(RoundedCornerShape(3.dp))
                                             .background(MaterialTheme.colorScheme.secondaryContainer)
-                                            .padding(horizontal = 6.dp)
                                     ) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxHeight()
                                                 .fillMaxWidth((amount / maxAmount).toFloat())
-                                                .background(MaterialTheme.colorScheme.primary)
+                                                .background(barColor)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = formatCurrency(amount),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
                                 }
                             }
                         }

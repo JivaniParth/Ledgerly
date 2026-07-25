@@ -43,8 +43,6 @@ import com.parthjivani.ledgerly.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import androidx.compose.ui.platform.LocalContext
 import com.parthjivani.ledgerly.ui.*
 import com.parthjivani.ledgerly.data.*
@@ -978,6 +976,9 @@ fun SettingsScreen(
                             }
                         }
                         // Date and Time picker
+                        var showNewRecDatePicker by remember { mutableStateOf(false) }
+                        var showNewRecTimePicker by remember { mutableStateOf(false) }
+                        
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -986,35 +987,57 @@ fun SettingsScreen(
                             Text("Next Due / Start Date:", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                             val formattedDate = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(newRecNextDueDate))
                             OutlinedButton(
-                                onClick = {
-                                    val calendar = Calendar.getInstance().apply { timeInMillis = newRecNextDueDate }
-                                    DatePickerDialog(
-                                        context,
-                                        { _, y, m, d ->
-                                            calendar.set(Calendar.YEAR, y)
-                                            calendar.set(Calendar.MONTH, m)
-                                            calendar.set(Calendar.DAY_OF_MONTH, d)
-                                            TimePickerDialog(
-                                                context,
-                                                { _, h, mn ->
-                                                    calendar.set(Calendar.HOUR_OF_DAY, h)
-                                                    calendar.set(Calendar.MINUTE, mn)
-                                                    newRecNextDueDate = calendar.timeInMillis
-                                                },
-                                                calendar.get(Calendar.HOUR_OF_DAY),
-                                                calendar.get(Calendar.MINUTE),
-                                                false
-                                            ).show()
-                                        },
-                                        calendar.get(Calendar.YEAR),
-                                        calendar.get(Calendar.MONTH),
-                                        calendar.get(Calendar.DAY_OF_MONTH)
-                                    ).show()
-                                },
+                                onClick = { showNewRecDatePicker = true },
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text(formattedDate, fontSize = 11.sp)
                             }
+                        }
+
+                        if (showNewRecDatePicker) {
+                            val datePickerState = rememberDatePickerState(initialSelectedDateMillis = newRecNextDueDate)
+                            androidx.compose.material3.DatePickerDialog(
+                                onDismissRequest = { showNewRecDatePicker = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        datePickerState.selectedDateMillis?.let { selectedDate ->
+                                            val currentCal = Calendar.getInstance().apply { timeInMillis = newRecNextDueDate }
+                                            val newCal = Calendar.getInstance().apply { timeInMillis = selectedDate }
+                                            newCal.set(Calendar.HOUR_OF_DAY, currentCal.get(Calendar.HOUR_OF_DAY))
+                                            newCal.set(Calendar.MINUTE, currentCal.get(Calendar.MINUTE))
+                                            newRecNextDueDate = newCal.timeInMillis
+                                        }
+                                        showNewRecDatePicker = false
+                                        showNewRecTimePicker = true
+                                    }) { Text("Next") }
+                                },
+                                dismissButton = { TextButton(onClick = { showNewRecDatePicker = false }) { Text("Cancel") } }
+                            ) {
+                                DatePicker(state = datePickerState)
+                            }
+                        }
+
+                        if (showNewRecTimePicker) {
+                            val cal = Calendar.getInstance().apply { timeInMillis = newRecNextDueDate }
+                            val timePickerState = rememberTimePickerState(
+                                initialHour = cal.get(Calendar.HOUR_OF_DAY),
+                                initialMinute = cal.get(Calendar.MINUTE),
+                                is24Hour = false
+                            )
+                            AlertDialog(
+                                onDismissRequest = { showNewRecTimePicker = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val newCal = Calendar.getInstance().apply { timeInMillis = newRecNextDueDate }
+                                        newCal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                                        newCal.set(Calendar.MINUTE, timePickerState.minute)
+                                        newRecNextDueDate = newCal.timeInMillis
+                                        showNewRecTimePicker = false
+                                    }) { Text("OK") }
+                                },
+                                dismissButton = { TextButton(onClick = { showNewRecTimePicker = false }) { Text("Cancel") } },
+                                text = { TimePicker(state = timePickerState) }
+                            )
                         }
                         Spacer(modifier = Modifier.height(14.dp))
 
@@ -1074,16 +1097,51 @@ fun SettingsScreen(
                                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                                 Text("Next Due:", fontSize = 12.sp)
                                                 val fd = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(edNextDue))
-                                                TextButton(onClick = {
+                                                
+                                                var showEditDatePicker by remember { mutableStateOf(false) }
+                                                var showEditTimePicker by remember { mutableStateOf(false) }
+                                                
+                                                TextButton(onClick = { showEditDatePicker = true }) { Text(fd, fontSize = 12.sp) }
+
+                                                if (showEditDatePicker) {
+                                                    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = edNextDue)
+                                                    androidx.compose.material3.DatePickerDialog(
+                                                        onDismissRequest = { showEditDatePicker = false },
+                                                        confirmButton = {
+                                                            TextButton(onClick = {
+                                                                datePickerState.selectedDateMillis?.let {
+                                                                    val currentCal = Calendar.getInstance().apply { timeInMillis = edNextDue }
+                                                                    val newCal = Calendar.getInstance().apply { timeInMillis = it }
+                                                                    newCal.set(Calendar.HOUR_OF_DAY, currentCal.get(Calendar.HOUR_OF_DAY))
+                                                                    newCal.set(Calendar.MINUTE, currentCal.get(Calendar.MINUTE))
+                                                                    edNextDue = newCal.timeInMillis
+                                                                }
+                                                                showEditDatePicker = false
+                                                                showEditTimePicker = true
+                                                            }) { Text("Next") }
+                                                        },
+                                                        dismissButton = { TextButton(onClick = { showEditDatePicker = false }) { Text("Cancel") } }
+                                                    ) { DatePicker(state = datePickerState) }
+                                                }
+
+                                                if (showEditTimePicker) {
                                                     val cal = Calendar.getInstance().apply { timeInMillis = edNextDue }
-                                                    DatePickerDialog(context, { _, y, m, d ->
-                                                        cal.set(Calendar.YEAR, y); cal.set(Calendar.MONTH, m); cal.set(Calendar.DAY_OF_MONTH, d)
-                                                        TimePickerDialog(context, { _, h, mn ->
-                                                            cal.set(Calendar.HOUR_OF_DAY, h); cal.set(Calendar.MINUTE, mn)
-                                                            edNextDue = cal.timeInMillis
-                                                        }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), false).show()
-                                                    }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
-                                                }) { Text(fd, fontSize = 12.sp) }
+                                                    val timePickerState = rememberTimePickerState(initialHour = cal.get(Calendar.HOUR_OF_DAY), initialMinute = cal.get(Calendar.MINUTE), is24Hour = false)
+                                                    AlertDialog(
+                                                        onDismissRequest = { showEditTimePicker = false },
+                                                        confirmButton = {
+                                                            TextButton(onClick = {
+                                                                val newCal = Calendar.getInstance().apply { timeInMillis = edNextDue }
+                                                                newCal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                                                                newCal.set(Calendar.MINUTE, timePickerState.minute)
+                                                                edNextDue = newCal.timeInMillis
+                                                                showEditTimePicker = false
+                                                            }) { Text("OK") }
+                                                        },
+                                                        dismissButton = { TextButton(onClick = { showEditTimePicker = false }) { Text("Cancel") } },
+                                                        text = { TimePicker(state = timePickerState) }
+                                                    )
+                                                }
                                             }
                                         }
                                     },

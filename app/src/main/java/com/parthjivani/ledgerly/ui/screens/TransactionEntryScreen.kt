@@ -399,21 +399,32 @@ fun TransactionEntryScreen(
 
             if (showTimePickerDialog) {
                 val cal = Calendar.getInstance().apply { timeInMillis = transactionDate }
-                android.app.TimePickerDialog(
-                    context,
-                    { _, hourOfDay, minute ->
-                        val newCal = Calendar.getInstance().apply { timeInMillis = transactionDate }
-                        newCal.set(Calendar.HOUR_OF_DAY, hourOfDay)
-                        newCal.set(Calendar.MINUTE, minute)
-                        transactionDate = newCal.timeInMillis
-                        showTimePickerDialog = false
+                val timePickerState = rememberTimePickerState(
+                    initialHour = cal.get(Calendar.HOUR_OF_DAY),
+                    initialMinute = cal.get(Calendar.MINUTE),
+                    is24Hour = false
+                )
+
+                AlertDialog(
+                    onDismissRequest = { showTimePickerDialog = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val newCal = Calendar.getInstance().apply { timeInMillis = transactionDate }
+                                newCal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                                newCal.set(Calendar.MINUTE, timePickerState.minute)
+                                transactionDate = newCal.timeInMillis
+                                showTimePickerDialog = false
+                            }
+                        ) { Text("OK") }
                     },
-                    cal.get(Calendar.HOUR_OF_DAY),
-                    cal.get(Calendar.MINUTE),
-                    false // 12-hour format
-                ).apply {
-                    setOnDismissListener { showTimePickerDialog = false }
-                }.show()
+                    dismissButton = {
+                        TextButton(onClick = { showTimePickerDialog = false }) { Text("Cancel") }
+                    },
+                    text = {
+                        TimePicker(state = timePickerState)
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

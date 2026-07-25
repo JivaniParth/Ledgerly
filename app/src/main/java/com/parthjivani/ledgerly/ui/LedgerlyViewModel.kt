@@ -45,6 +45,12 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         LedgerlyRepository.calculateAverageMonthlyExpenseSpending(transactions, currentMillis)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    // Daily Logging Streak — number of consecutive days with at least one transaction logged
+    val currentStreak: StateFlow<Int> = allTransactions.map { transactions ->
+        calculateLoggingStreak(transactions)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+
     // Theme setting: "light", "dark", or "system"
     private val _appTheme = MutableStateFlow("system")
     val appTheme: StateFlow<String> = _appTheme.asStateFlow()
@@ -959,6 +965,91 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             else -> cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
         }
         return cal.timeInMillis
+    }
+
+    /**
+     * Calculates how many consecutive days (going back from today) have at least one transaction.
+     * Any transaction type counts (expense, income, transfer).
+     */
+    private fun calculateLoggingStreak(transactions: List<Transaction>): Int {
+        if (transactions.isEmpty()) return 0
+        val tz = java.util.TimeZone.getDefault()
+        // Collect unique calendar day keys (year * 10000 + dayOfYear) in local timezone
+        val loggedDays = transactions.map { tx ->
+            val cal = java.util.Calendar.getInstance(tz)
+            cal.timeInMillis = tx.date
+            // Use year + dayOfYear to handle year boundaries correctly
+            cal.get(java.util.Calendar.YEAR) * 1000 + cal.get(java.util.Calendar.DAY_OF_YEAR)
+        }.toHashSet()
+
+        val today = java.util.Calendar.getInstance(tz)
+        val todayKey = today.get(java.util.Calendar.YEAR) * 1000 + today.get(java.util.Calendar.DAY_OF_YEAR)
+
+        // Streak must start from today or yesterday (user may not have logged yet today)
+        val startKey = when {
+            loggedDays.contains(todayKey) -> todayKey
+            else -> {
+                val yesterday = java.util.Calendar.getInstance(tz).also { it.add(java.util.Calendar.DAY_OF_YEAR, -1) }
+                val yesterdayKey = yesterday.get(java.util.Calendar.YEAR) * 1000 + yesterday.get(java.util.Calendar.DAY_OF_YEAR)
+                if (loggedDays.contains(yesterdayKey)) yesterdayKey else return 0
+            }
+        }
+
+        var streak = 0
+        val checkCal = java.util.Calendar.getInstance(tz)
+        // Set to the starting day
+        val startDayOffset = todayKey - startKey // 0 if today, 1 if yesterday
+        checkCal.add(java.util.Calendar.DAY_OF_YEAR, -startDayOffset)
+
+        while (true) {
+            val key = checkCal.get(java.util.Calendar.YEAR) * 1000 + checkCal.get(java.util.Calendar.DAY_OF_YEAR)
+            if (!loggedDays.contains(key)) break
+            streak++
+            checkCal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        }
+        return streak
+    }
+
+    /**
+     * Counts how many of the last [monthsBack] full calendar months had total spending
+     * exceeding the "Overall" budget goal limit.
+     */
+    fun calculateMonthsOverBudget(
+        transactions: List<Transaction>,
+        budgetGoals: List<BudgetGoal>,
+        monthsBack: Int = 6
+    ): Int {
+        val overallGoal = budgetGoals.find { it.category.equals("Overall", ignoreCase = true)
+        } ?: return 0
+        if (overallGoal.limitAmount <= 0) return 0
+
+        val tz = java.util.TimeZone.getDefault()
+        var overBudgetCount = 0
+
+        for (i in 1..monthsBack) {
+            val cal = java.util.Calendar.getInstance(tz)
+            cal.add(java.util.Calendar.MONTH, -i)
+            cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            cal.set(java.util.Calendar.MINUTE, 0)
+            cal.set(java.util.Calendar.SECOND, 0)
+            cal.set(java.util.Calendar.MILLISECOND, 0)
+            val monthStart = cal.timeInMillis
+
+            val endCal = cal.clone() as java.util.Calendar
+            endCal.add(java.util.Calendar.MONTH, 1)
+            val monthEnd = endCal.timeInMillis
+
+            val monthSpend = transactions.filter { t ->
+                t.date >= monthStart && t.date < monthEnd && (
+                    (t.type == TransactionType.PERSONAL_EXPENSE && t.sourceWallet != WalletType.TEMPORARY_WALLET) ||
+                    (t.type == TransactionType.FAMILY_TRANSFER && t.direction == TransactionDirection.GIVEN_TO_THEM && t.sourceWallet != WalletType.TEMPORARY_WALLET)
+                )
+            }.sumOf { it.amount }
+
+            if (monthSpend > overallGoal.limitAmount) overBudgetCount++
+        }
+        return overBudgetCount
     }
 
     private val _supabasePulling = MutableStateFlow(false)
