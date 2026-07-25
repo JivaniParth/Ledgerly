@@ -665,6 +665,12 @@ fun DashboardScreen(
                                         Text(formatCurrency(sg.currentAmount), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                         Text(formatCurrency(sg.targetAmount), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
+                                    val percentage = if (sg.targetAmount > 0) (sg.currentAmount / sg.targetAmount * 100).toInt() else 0
+                                    Text(
+                                        text = "${formatCurrency(sg.currentAmount)} is $percentage% of ${formatCurrency(sg.targetAmount)}",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                    )
                                 }
                             }
                         }

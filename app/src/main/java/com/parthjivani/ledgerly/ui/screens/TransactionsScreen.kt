@@ -70,6 +70,8 @@ fun TransactionsScreen(
     val lastSavedId by viewModel.lastSavedTransactionId.collectAsState()
     val listState = rememberLazyListState()
     var highlightedId by remember { mutableStateOf<Long?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
@@ -150,13 +152,34 @@ fun TransactionsScreen(
         modifier = Modifier.fillMaxSize().testTag("transactions_screen"),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddTransactionClick,
-                modifier = Modifier.testTag("transactions_add_fab"),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "New Entry")
+                AnimatedVisibility(
+                    visible = showGoToTop,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            coroutineScope.launch { listState.animateScrollToItem(0) }
+                        },
+                        modifier = Modifier.testTag("transactions_go_to_top_fab"),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Go to Top")
+                    }
+                }
+                FloatingActionButton(
+                    onClick = onAddTransactionClick,
+                    modifier = Modifier.testTag("transactions_add_fab"),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "New Entry")
+                }
             }
         }
     ) { innerPadding ->
