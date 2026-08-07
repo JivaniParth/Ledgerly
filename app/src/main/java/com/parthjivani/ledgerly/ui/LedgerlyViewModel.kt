@@ -240,6 +240,45 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                         _supabaseSyncSuccess.value = "Synced: Auto-uploaded ${localAllTxs.size} local transactions to your new Supabase database!"
                     }
                 } else {
+                    // ── Push local data first so offline records are saved to Supabase ──
+                    // This ensures any records added while offline are not lost when we
+                    // clear local storage and replace it with the server's data.
+                    val autoBatchSize = 500
+                    val localMembersForPush = repository.allFamilyMembers.first()
+                    val localCardsForPush = repository.allCreditCards.first()
+                    val localWalletsForPush = repository.allCustomWallets.first()
+                    val localTxsForPush = repository.allTransactions.first()
+                    val localGoalsForPush = repository.allBudgetGoals.first()
+                    val localSavingsGoalsForPush = repository.allSavingsGoals.first()
+                    val localRecurringsForPush = repository.allRecurringTransactions.first()
+
+                    if (localMembersForPush.isNotEmpty()) localMembersForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertFamilyMembers(chunk) }
+                    if (localCardsForPush.isNotEmpty()) localCardsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertCreditCards(chunk) }
+                    if (localWalletsForPush.isNotEmpty()) localWalletsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertCustomWallets(chunk) }
+                    if (localTxsForPush.isNotEmpty()) localTxsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertTransactions(chunk) }
+                    if (localGoalsForPush.isNotEmpty()) localGoalsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertBudgetGoals(chunk) }
+                    if (localSavingsGoalsForPush.isNotEmpty()) localSavingsGoalsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertSavingsGoals(chunk) }
+                    if (localRecurringsForPush.isNotEmpty()) localRecurringsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertRecurringTransactions(chunk) }
+
+                    // ── Now re-fetch from Supabase (which now includes our offline records) ──
+                    val mergedTxs = buildList {
+                        val pageSize = 1000
+                        var offset = 0
+                        while (true) {
+                            val page = api.getTransactions(range = "$offset-${offset + pageSize - 1}")
+                            addAll(page)
+                            if (page.size < pageSize) break
+                            offset += pageSize
+                        }
+                    }
+                    val mergedMembers = api.getFamilyMembers()
+                    val mergedCards = api.getCreditCards()
+                    val mergedWallets = api.getCustomWallets()
+                    val mergedGoals = api.getBudgetGoals()
+                    val mergedSavingsGoals = api.getSavingsGoals()
+                    val mergedRecurrings = api.getRecurringTransactions()
+
+                    // ── Replace local DB with the fully merged server state ──
                     repository.clearAllFamilyMembers()
                     repository.clearAllCreditCards()
                     repository.clearAllCustomWallets()
@@ -248,14 +287,14 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     repository.clearAllSavingsGoals()
                     repository.clearAllRecurringTransactions()
 
-                    supMembers.forEach { repository.insertFamilyMember(it.toRoom()) }
-                    supCards.forEach { repository.insertCreditCard(it.toRoom()) }
-                    supCustomWallets.forEach { repository.insertCustomWallet(it.toRoom()) }
-                    supTxs.forEach { repository.insertTransaction(it.toRoom()) }
-                    supGoals.forEach { repository.insertBudgetGoal(it.toRoom()) }
-                    supSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
-                    supRecurrings.forEach { repository.insertRecurringTransaction(it.toRoom()) }
-                    
+                    mergedMembers.forEach { repository.insertFamilyMember(it.toRoom()) }
+                    mergedCards.forEach { repository.insertCreditCard(it.toRoom()) }
+                    mergedWallets.forEach { repository.insertCustomWallet(it.toRoom()) }
+                    mergedTxs.forEach { repository.insertTransaction(it.toRoom()) }
+                    mergedGoals.forEach { repository.insertBudgetGoal(it.toRoom()) }
+                    mergedSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
+                    mergedRecurrings.forEach { repository.insertRecurringTransaction(it.toRoom()) }
+
                     if (supCategories.isNotEmpty()) {
                         val newExpCats = supCategories.filter { it.type == "expense" }.map { it.name }.joinToString(",")
                         val newIncCats = supCategories.filter { it.type == "income" }.map { it.name }.joinToString(",")
@@ -268,7 +307,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     // Save sync timestamp to avoid redundant fetches within threshold window
                     repository.insertSetting("last_synced_at", System.currentTimeMillis().toString())
 
-                    val roomTxs = supTxs.map { it.toRoom() }
+                    val roomTxs = mergedTxs.map { it.toRoom() }
                     val totalExp = roomTxs.filter { it.type == TransactionType.PERSONAL_EXPENSE && it.sourceWallet == WalletType.EXPENSE_WALLET }.sumOf { it.amount }
                     val totalInc = roomTxs.filter { it.type == TransactionType.PERSONAL_INCOME && it.sourceWallet == WalletType.EXPENSE_WALLET }.sumOf { it.amount }
                     val famRec = roomTxs.filter { it.type == TransactionType.FAMILY_TRANSFER && (it.sourceWallet == WalletType.EXPENSE_WALLET || it.destinationWallet == WalletType.EXPENSE_WALLET) && it.direction == TransactionDirection.RECEIVED_FROM_THEM }.sumOf { it.amount }
