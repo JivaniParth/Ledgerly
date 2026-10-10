@@ -213,3 +213,42 @@ export function formatCurrency(amount: number, currencySymbol: string = '₹'): 
   });
   return `${isNegative ? '-' : ''}${currencySymbol}${formatted}`;
 }
+
+/**
+ * Formats epoch timestamp or Date to Indian date format DD/MM/YYYY (e.g. 08/10/2026)
+ */
+export function formatIndianDate(date: number | string | Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Formats epoch timestamp or Date to 12-hour Indian time format (e.g. 01:15 PM)
+ */
+export function formatIndianTime(date: number | string | Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/**
+ * Formats epoch timestamp or Date to Indian date & time (e.g. 08/10/2026, 01:15 PM)
+ */
+export function formatIndianDateTime(date: number | string | Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return `${formatIndianDate(d)}, ${formatIndianTime(d)}`;
+}
+

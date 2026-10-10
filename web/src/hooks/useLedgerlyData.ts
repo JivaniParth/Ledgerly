@@ -594,6 +594,35 @@ export function useLedgerlyData() {
     return await addTransaction(tx);
   };
 
+  // 11. Wipe / Clear All Data (Mobile parity)
+  const clearAllData = async () => {
+    try {
+      await supabase.from('transactions').delete().neq('id', 0);
+      await supabase.from('transaction_splits').delete().neq('id', 0);
+      await supabase.from('family_members').delete().neq('id', 0);
+      await supabase.from('credit_cards').delete().neq('id', 0);
+      await supabase.from('custom_wallets').delete().neq('id', 0);
+      await supabase.from('savings_goals').delete().neq('id', 0);
+      await supabase.from('budget_goals').delete().neq('category', '');
+      await supabase.from('recurring_transactions').delete().neq('id', 0);
+      await supabase.from('contacts').delete().neq('id', 0);
+    } catch (e) {
+      console.warn('Error clearing Supabase tables:', e);
+    }
+
+    setTransactions([]);
+    setSplits([]);
+    setFamilyMembers([]);
+    setCreditCards([]);
+    setCustomWallets([]);
+    setSavingsGoals([]);
+    setBudgetGoals([]);
+    setRecurringTransactions([]);
+    setContacts([]);
+
+    return { success: true };
+  };
+
   return {
     loading,
     syncing,
@@ -652,5 +681,6 @@ export function useLedgerlyData() {
     updateContact,
     deleteContact,
     settleUpEntity,
+    clearAllData,
   };
 }

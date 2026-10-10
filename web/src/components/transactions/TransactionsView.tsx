@@ -22,7 +22,7 @@ import {
   WalletType,
   TransactionType,
 } from '../../lib/types';
-import { formatCurrency } from '../../lib/calculations';
+import { formatCurrency, formatIndianDate, formatIndianTime, formatIndianDateTime } from '../../lib/calculations';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
@@ -188,7 +188,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const handleExport = (format: 'xlsx' | 'csv') => {
     const exportData = filteredTransactions.map((t) => ({
       ID: t.id,
-      Date: new Date(t.date).toISOString().replace('T', ' ').slice(0, 19),
+      Date: formatIndianDateTime(t.date),
       Type: t.type,
       Category: t.category,
       Amount: t.amount,
@@ -442,9 +442,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       className="hover:bg-gray-50 dark:hover:bg-darkCard/40 transition-colors"
                     >
                       <td className="py-3 px-4 text-gray-600 dark:text-darkMuted whitespace-nowrap">
-                        {new Date(tx.date).toLocaleDateString()}
+                        <span className="font-semibold text-gray-900 dark:text-gray-100 block">
+                          {formatIndianDate(tx.date)}
+                        </span>
                         <span className="text-[10px] block opacity-70">
-                          {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatIndianTime(tx.date)}
                         </span>
                       </td>
 

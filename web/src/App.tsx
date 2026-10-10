@@ -17,7 +17,7 @@ import { AuthPage } from './pages/AuthPage';
 import { Transaction } from './lib/types';
 
 const MainDashboardApp: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const data = useLedgerlyData();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -221,6 +221,9 @@ const MainDashboardApp: React.FC = () => {
               onDeleteRecurring={data.deleteRecurring}
               onRefreshData={data.refreshData}
               syncing={data.syncing}
+              onNavigateToExcel={() => setActiveTab('excel')}
+              onClearAllData={data.clearAllData}
+              onLogout={logout}
             />
           )}
 

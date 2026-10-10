@@ -19,7 +19,7 @@ import {
   BudgetGoal,
   CreditCard,
 } from '../../lib/types';
-import { formatCurrency } from '../../lib/calculations';
+import { formatCurrency, formatIndianDate } from '../../lib/calculations';
 import { useTheme } from '../../context/ThemeContext';
 
 interface DashboardViewProps {
@@ -510,7 +510,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {tx.notes || tx.category}
                       </p>
                       <p className="text-[11px] text-gray-500 dark:text-darkMuted">
-                        {new Date(tx.date).toLocaleDateString()} • {tx.category} •{' '}
+                        {formatIndianDate(tx.date)} • {tx.category} •{' '}
                         {tx.source_wallet.replace('_WALLET', '')}
                       </p>
                     </div>
