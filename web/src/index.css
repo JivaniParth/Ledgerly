@@ -30,3 +30,18 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(140, 150, 165, 0.5);
 }
+
+/* Hide Netlify Drawer & collaboration badges */
+netlify-drawer,
+#netlify-drawer,
+[data-netlify-drawer],
+[id^="netlify-drawer"],
+div[class*="netlify-drawer"],
+iframe[src*="netlify-drawer"],
+iframe[title*="Netlify"],
+div:has(> iframe[title*="Netlify"]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
