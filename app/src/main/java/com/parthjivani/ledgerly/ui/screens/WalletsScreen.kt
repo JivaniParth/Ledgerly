@@ -57,8 +57,23 @@ fun parseColorSafe(hex: String, defaultStart: Color, defaultEnd: Color): List<Co
     }
 }
 
+data class LedgerEntity(
+    val id: Long,
+    val name: String,
+    val isFamilyMember: Boolean,
+    val balance: Double,
+    val contactObj: Contact? = null,
+    val memberObj: FamilyMember? = null
+)
+
 @Composable
-fun WalletsScreen(viewModel: LedgerlyViewModel, onNavigateToTransactions: () -> Unit = {}) {
+fun WalletsScreen(
+    viewModel: LedgerlyViewModel, 
+    onNavigateToTransactions: () -> Unit = {},
+    onScrollStateChange: (Boolean) -> Unit = {}
+) {
+    var selectedWalletTab by remember { mutableStateOf(0) }
+    
     val expenseBalance by viewModel.expenseWalletBalance.collectAsState()
     val savingsBalance by viewModel.savingsWalletBalance.collectAsState()
     val creditCards by viewModel.allCreditCards.collectAsState()
@@ -66,10 +81,21 @@ fun WalletsScreen(viewModel: LedgerlyViewModel, onNavigateToTransactions: () -> 
     val customWallets by viewModel.allCustomWallets.collectAsState()
     val expenseWalletColorHex by viewModel.expenseWalletColor.collectAsState()
     
+    val familyMembers by viewModel.allFamilyMembers.collectAsState()
+    val contacts by viewModel.allContacts.collectAsState()
+    val splits by viewModel.allTransactionSplits.collectAsState()
+    
     var editingCard by remember { mutableStateOf<CreditCard?>(null) }
     var editingCustomWallet by remember { mutableStateOf<CustomWallet?>(null) }
     var showCustomWalletDialog by remember { mutableStateOf(false) }
     var showColorPickerFor by remember { mutableStateOf<String?>(null) }
+    
+    var showAddContactDialog by remember { mutableStateOf(false) }
+    var newContactName by remember { mutableStateOf("") }
+    
+    var showSettleUpConfirm by remember { mutableStateOf<LedgerEntity?>(null) }
+    var selectedEntityForDetails by remember { mutableStateOf<LedgerEntity?>(null) }
+    var editingEntityName by remember { mutableStateOf<String?>(null) }
 
     if (editingCard != null) {
         var cardName by remember { mutableStateOf(editingCard!!.cardName) }
@@ -238,7 +264,7 @@ fun WalletsScreen(viewModel: LedgerlyViewModel, onNavigateToTransactions: () -> 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -246,7 +272,7 @@ fun WalletsScreen(viewModel: LedgerlyViewModel, onNavigateToTransactions: () -> 
                 AppLogo()
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "My Wallets & Accounts",
+                    text = "Wallets & Ledger",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -254,11 +280,32 @@ fun WalletsScreen(viewModel: LedgerlyViewModel, onNavigateToTransactions: () -> 
                 )
             }
         }
+        
+        TabRow(
+            selectedTabIndex = selectedWalletTab,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            containerColor = Color.Transparent
+        ) {
+            Tab(
+                selected = selectedWalletTab == 0,
+                onClick = { selectedWalletTab = 0 },
+                text = { Text("Wallets", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+            )
+            Tab(
+                selected = selectedWalletTab == 1,
+                onClick = { selectedWalletTab = 1 },
+                text = { Text("Contacts Ledger", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+            )
+        }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        val listState = rememberLazyListState()
+        val isScrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+        LaunchedEffect(isScrolled) { onScrollStateChange(isScrolled) }
 
-        // Wallet Cards List in a LazyColumn
-        LazyColumn(
+        if (selectedWalletTab == 0) {
+            // Wallet Cards List in a LazyColumn
+            LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -457,6 +504,353 @@ fun WalletsScreen(viewModel: LedgerlyViewModel, onNavigateToTransactions: () -> 
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+        } else {
+            // Contacts Ledger View
+            val ledgerEntities = remember(familyMembers, contacts, splits, transactions) {
+                val entities = mutableListOf<LedgerEntity>()
+                
+                // Process Contacts
+                contacts.forEach { contact ->
+                    val splitsOwed = splits.filter { it.contactId == contact.id && !it.isSettled }.sumOf { it.amount }
+                    val lent = transactions.filter { it.contactId == contact.id && it.type == TransactionType.BORROW_LEND && it.direction == TransactionDirection.LENT }.sumOf { it.amount }
+                    val borrowed = transactions.filter { it.contactId == contact.id && it.type == TransactionType.BORROW_LEND && it.direction == TransactionDirection.BORROWED }.sumOf { it.amount }
+                    val balance = splitsOwed + lent - borrowed
+                    
+                    entities.add(LedgerEntity(id = contact.id, name = contact.name, isFamilyMember = false, balance = balance, contactObj = contact))
+                }
+                
+                // Process Family Members
+                familyMembers.forEach { member ->
+                    val splitsOwed = splits.filter { it.familyMemberId == member.id && !it.isSettled }.sumOf { it.amount }
+                    val lent = transactions.filter { it.familyMemberId == member.id && it.type == TransactionType.BORROW_LEND && it.direction == TransactionDirection.LENT }.sumOf { it.amount }
+                    val borrowed = transactions.filter { it.familyMemberId == member.id && it.type == TransactionType.BORROW_LEND && it.direction == TransactionDirection.BORROWED }.sumOf { it.amount }
+                    val balance = splitsOwed + lent - borrowed
+                    
+                    // Show family members only if they have a ledger balance, to keep it clean.
+                    if (balance != 0.0) {
+                        entities.add(LedgerEntity(id = member.id, name = "${member.name} (Family)", isFamilyMember = true, balance = balance, memberObj = member))
+                    }
+                }
+                
+                entities.sortedByDescending { Math.abs(it.balance) }
+            }
+            
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val oweYou = ledgerEntities.filter { it.balance > 0 }
+                    val youOwe = ledgerEntities.filter { it.balance < 0 }
+                    val settled = ledgerEntities.filter { it.balance == 0.0 }
+                    
+                    if (oweYou.isNotEmpty()) {
+                        item {
+                            Text("Owes You", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ExpenseColor)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        items(oweYou) { entity ->
+                            LedgerEntityCard(entity, onClick = { selectedEntityForDetails = entity }, onSettleUp = { showSettleUpConfirm = it })
+                        }
+                    }
+                    
+                    if (youOwe.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("You Owe", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        items(youOwe) { entity ->
+                            LedgerEntityCard(entity, onClick = { selectedEntityForDetails = entity }, onSettleUp = { showSettleUpConfirm = it })
+                        }
+                    }
+                    
+                    if (settled.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Settled Up", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        items(settled) { entity ->
+                            LedgerEntityCard(entity, onClick = { selectedEntityForDetails = entity }, onSettleUp = { showSettleUpConfirm = it })
+                        }
+                    }
+                    
+                    if (ledgerEntities.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("No contacts in your ledger yet.", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("Add a contact to start splitting expenses or borrowing/lending.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                            }
+                        }
+                    }
+                }
+                
+                FloatingActionButton(
+                    onClick = { showAddContactDialog = true },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = "Add Contact")
+                }
+            }
+            
+            if (showAddContactDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddContactDialog = false },
+                    title = { Text("Add Contact") },
+                    text = {
+                        OutlinedTextField(
+                            value = newContactName,
+                            onValueChange = { newContactName = it },
+                            label = { Text("Contact Name") },
+                            singleLine = true
+                        )
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            if (newContactName.isNotBlank()) {
+                                viewModel.addContact(newContactName.trim())
+                                newContactName = ""
+                                showAddContactDialog = false
+                            }
+                        }) { Text("Add") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddContactDialog = false }) { Text("Cancel") }
+                    }
+                )
+            }
+            
+            if (showSettleUpConfirm != null) {
+                val entity = showSettleUpConfirm!!
+                AlertDialog(
+                    onDismissRequest = { showSettleUpConfirm = null },
+                    title = { Text("Settle Up with ${entity.name}?") },
+                    text = {
+                        if (entity.balance > 0) {
+                            Text("Record a payment of ${formatCurrency(entity.balance)} received from ${entity.name}. This will settle all splits and borrow/lend transactions and update your Expense Wallet balance.")
+                        } else if (entity.balance < 0) {
+                            Text("Record a payment of ${formatCurrency(Math.abs(entity.balance))} made to ${entity.name}. This will settle all splits and borrow/lend transactions and reduce your Expense Wallet balance.")
+                        } else {
+                            Text("This contact is already settled up.")
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            if (entity.isFamilyMember && entity.memberObj != null) {
+                                viewModel.settleUpFamilyMember(entity.memberObj.id, WalletType.EXPENSE_WALLET)
+                            } else if (!entity.isFamilyMember && entity.contactObj != null) {
+                                viewModel.settleUpContact(entity.contactObj.id, WalletType.EXPENSE_WALLET)
+                            }
+                            showSettleUpConfirm = null
+                        }, enabled = entity.balance != 0.0) {
+                            Text("Confirm")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSettleUpConfirm = null }) { Text("Cancel") }
+                    }
+                )
+            }
+
+            if (selectedEntityForDetails != null) {
+                val entity = selectedEntityForDetails!!
+                
+                if (editingEntityName != null) {
+                    AlertDialog(
+                        onDismissRequest = { editingEntityName = null },
+                        title = { Text("Edit Name") },
+                        text = {
+                            OutlinedTextField(
+                                value = editingEntityName!!,
+                                onValueChange = { editingEntityName = it },
+                                label = { Text("Name") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                val trimmed = editingEntityName!!.trim()
+                                if (trimmed.isNotEmpty()) {
+                                    if (entity.isFamilyMember && entity.memberObj != null) {
+                                        viewModel.updateFamilyMember(entity.memberObj.copy(name = trimmed))
+                                    } else if (!entity.isFamilyMember && entity.contactObj != null) {
+                                        viewModel.updateContact(entity.contactObj.copy(name = trimmed))
+                                    }
+                                }
+                                editingEntityName = null
+                                selectedEntityForDetails = null
+                            }) {
+                                Text("Save")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { editingEntityName = null }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                } else {
+                    AlertDialog(
+                        onDismissRequest = { selectedEntityForDetails = null },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(if (entity.isFamilyMember) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(entity.name.take(1).uppercase(), fontWeight = FontWeight.Bold, color = if (entity.isFamilyMember) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(entity.name, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    val statusText = when {
+                                        entity.balance > 0 -> "Owes you ${formatCurrency(entity.balance)}"
+                                        entity.balance < 0 -> "You owe ${formatCurrency(Math.abs(entity.balance))}"
+                                        else -> "Settled up"
+                                    }
+                                    val statusColor = when {
+                                        entity.balance > 0 -> ExpenseColor
+                                        entity.balance < 0 -> MaterialTheme.colorScheme.error
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                    Text(statusText, fontSize = 14.sp, color = statusColor)
+                                }
+                            }
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                Button(
+                                    onClick = {
+                                        viewModel.clearTxFilters()
+                                        if (entity.isFamilyMember) {
+                                            viewModel.setTxMemberFilter(entity.id)
+                                        } else {
+                                            viewModel.setTxContactFilter(entity.id)
+                                        }
+                                        selectedEntityForDetails = null
+                                        onNavigateToTransactions()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.List, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("View History")
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = { editingEntityName = entity.name },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Edit Name")
+                                }
+                                
+                                if (entity.balance != 0.0) {
+                                    OutlinedButton(
+                                        onClick = { 
+                                            showSettleUpConfirm = entity 
+                                            selectedEntityForDetails = null
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Default.AttachMoney, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Settle Up")
+                                    }
+                                }
+                                
+                                TextButton(
+                                    onClick = {
+                                        if (entity.isFamilyMember && entity.memberObj != null) {
+                                            viewModel.deleteFamilyMember(entity.memberObj)
+                                        } else if (!entity.isFamilyMember && entity.contactObj != null) {
+                                            viewModel.deleteContact(entity.contactObj)
+                                        }
+                                        selectedEntityForDetails = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Delete Contact")
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { selectedEntityForDetails = null }) {
+                                Text("Close")
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LedgerEntityCard(entity: LedgerEntity, onClick: () -> Unit, onSettleUp: (LedgerEntity) -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(if (entity.isFamilyMember) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(entity.name.take(1).uppercase(), fontWeight = FontWeight.Bold, color = if (entity.isFamilyMember) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(entity.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    val statusText = when {
+                        entity.balance > 0 -> "Owes you ${formatCurrency(entity.balance)}"
+                        entity.balance < 0 -> "You owe ${formatCurrency(Math.abs(entity.balance))}"
+                        else -> "Settled up"
+                    }
+                    val statusColor = when {
+                        entity.balance > 0 -> ExpenseColor
+                        entity.balance < 0 -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Text(statusText, fontSize = 13.sp, color = statusColor, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            
+            if (entity.balance != 0.0) {
+                Button(
+                    onClick = { onSettleUp(entity) },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Settle", fontSize = 12.sp)
+                }
             }
         }
     }

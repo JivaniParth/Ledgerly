@@ -27,6 +27,7 @@ import com.parthjivani.ledgerly.ui.components.AmountInputField
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -51,13 +52,14 @@ import com.parthjivani.ledgerly.ui.theme.*
 fun TransactionEntryScreen(
     familyMembers: List<FamilyMember>,
     editingTransaction: Transaction? = null,
-    onSubmitTransaction: (amount: Double, notes: String, type: TransactionType, source: WalletType, dest: WalletType?, memberId: Long?, dir: TransactionDirection?, date: Long, category: String, creditCardId: Long?, customWalletId: Long?, destinationCustomWalletId: Long?) -> Unit,
+    onSubmitTransaction: (amount: Double, notes: String, type: TransactionType, source: WalletType, dest: WalletType?, memberId: Long?, dir: TransactionDirection?, date: Long, category: String, creditCardId: Long?, customWalletId: Long?, destinationCustomWalletId: Long?, contactId: Long?, splits: List<com.parthjivani.ledgerly.data.TransactionSplit>) -> Unit,
     onNavigateToFamily: () -> Unit,
     viewModel: LedgerlyViewModel
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val creditCards by viewModel.allCreditCards.collectAsState()
     val customWallets by viewModel.allCustomWallets.collectAsState()
+    val contacts by viewModel.allContacts.collectAsState()
 
     val initialAmount = editingTransaction?.let {
         if (it.amount % 1.0 == 0.0) it.amount.toInt().toString() else it.amount.toString()
@@ -71,6 +73,7 @@ fun TransactionEntryScreen(
             TransactionType.PERSONAL_INCOME -> 1
             TransactionType.FAMILY_TRANSFER -> 2
             TransactionType.WALLET_TRANSFER -> 3
+            TransactionType.BORROW_LEND -> 4
         }
     } ?: 0
 
@@ -164,6 +167,23 @@ fun TransactionEntryScreen(
 
     // Dropdown expanded state
     var dropdownExpanded by remember { mutableStateOf(false) }
+    
+    // Borrow/Lend states
+    val initialContactId = editingTransaction?.let { t -> if (t.type == TransactionType.BORROW_LEND) t.contactId else null }
+    val initialBorrowLendFamilyId = editingTransaction?.let { t -> if (t.type == TransactionType.BORROW_LEND) t.familyMemberId else null }
+    val initialBorrowLendTarget = initialContactId?.let { "C_$it" } ?: initialBorrowLendFamilyId?.let { "F_$it" }
+    var selectedBorrowLendTarget by remember(editingTransaction) { mutableStateOf<String?>(initialBorrowLendTarget) }
+    var borrowLendDirection by remember(editingTransaction) { mutableStateOf(editingTransaction?.let { if (it.type == TransactionType.BORROW_LEND) it.direction else null } ?: TransactionDirection.BORROWED) }
+    var borrowLendWallet by remember(editingTransaction) { mutableStateOf(editingTransaction?.let { if (it.type == TransactionType.BORROW_LEND) it.sourceWallet else null } ?: WalletType.EXPENSE_WALLET) }
+    var selectedBorrowLendCreditCard by remember(editingTransaction, creditCards) { mutableStateOf(editingTransaction?.let { if (it.type == TransactionType.BORROW_LEND && it.sourceWallet == WalletType.CREDIT_CARD) creditCards.find { c -> c.id == it.creditCardId } else null } ?: creditCards.firstOrNull()) }
+    var selectedBorrowLendCustomWallet by remember(editingTransaction, customWallets) { mutableStateOf(editingTransaction?.let { if (it.type == TransactionType.BORROW_LEND && it.sourceWallet == WalletType.TEMPORARY_WALLET) customWallets.find { c -> c.id == it.customWalletId } else null } ?: customWallets.firstOrNull()) }
+
+    // Split state for Expense
+    var isSplittingExpense by remember { mutableStateOf(false) }
+    var isEqualSplit by remember { mutableStateOf(true) }
+    val selectedSplitEntities = remember { mutableStateMapOf<String, Boolean>() } // "C_1" or "F_1" to boolean
+    val customSplitAmounts = remember { mutableStateMapOf<String, String>() } // "C_1" to "50.0"
+
 
     // Auto-select first family member if available
     LaunchedEffect(familyMembers) {
@@ -239,7 +259,7 @@ fun TransactionEntryScreen(
                 .testTag("entry_screen")
         ) {
             // Main tabs selector
-            val tabTitles = listOf("Expense", "Income", "Family Transfer", "Wallet Transfer")
+            val tabTitles = listOf("Expense", "Income", "Family Transfer", "Wallet Transfer", "Borrow/Lend")
             ScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
                 edgePadding = 0.dp,
@@ -616,6 +636,114 @@ fun TransactionEntryScreen(
                                     ),
                                     modifier = Modifier.testTag("entry_category_$cat")
                                 )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Split Expense Section
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Split this Expense", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                        Text("Split equally with contacts or family members", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Switch(
+                                        checked = isSplittingExpense,
+                                        onCheckedChange = { isSplittingExpense = it }
+                                    )
+                                }
+                                
+                                AnimatedVisibility(visible = isSplittingExpense) {
+                                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Equally split", fontSize = 14.sp)
+                                            Switch(
+                                                checked = isEqualSplit,
+                                                onCheckedChange = { isEqualSplit = it },
+                                                modifier = Modifier.scale(0.8f)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        if (contacts.isEmpty() && familyMembers.isEmpty()) {
+                                            Text("No contacts or family members to split with.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                                        } else {
+                                            // Combine contacts and family members
+                                            val splitOptions = buildList {
+                                                addAll(contacts.map { Pair("C_${it.id}", it.name) })
+                                                addAll(familyMembers.map { Pair("F_${it.id}", "${it.name} (Family)") })
+                                            }
+                                            
+                                            // Max height to prevent taking entire screen
+                                            Column(modifier = Modifier.heightIn(max = 250.dp).verticalScroll(rememberScrollState())) {
+                                                splitOptions.forEach { (id, name) ->
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth().clickable {
+                                                            selectedSplitEntities[id] = !(selectedSplitEntities[id] ?: false)
+                                                        }.padding(vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Checkbox(
+                                                            checked = selectedSplitEntities[id] == true,
+                                                            onCheckedChange = { selectedSplitEntities[id] = it }
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(name, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                        
+                                                        if (selectedSplitEntities[id] == true && !isEqualSplit) {
+                                                            OutlinedTextField(
+                                                                value = customSplitAmounts[id] ?: "",
+                                                                onValueChange = { customSplitAmounts[id] = it },
+                                                                label = { Text("Amount") },
+                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                                singleLine = true,
+                                                                modifier = Modifier.width(100.dp).height(50.dp),
+                                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            
+                                            val amount = amountStr.toDoubleOrNull() ?: 0.0
+                                            val numChecked = selectedSplitEntities.values.count { it }
+                                            if (numChecked > 0 && amount > 0 && isEqualSplit) {
+                                                val totalPeople = numChecked + 1 // including me
+                                                val splitAmount = amount / totalPeople
+                                                Text(
+                                                    "You paid ${formatCurrency(amount)}. You and $numChecked other(s) each owe ${formatCurrency(splitAmount)}.",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = ExpenseColor,
+                                                    modifier = Modifier.padding(top = 8.dp)
+                                                )
+                                            } else if (numChecked > 0 && amount > 0 && !isEqualSplit) {
+                                                val customTotal = selectedSplitEntities.filterValues { it }.keys.sumOf { customSplitAmounts[it]?.toDoubleOrNull() ?: 0.0 }
+                                                Text(
+                                                    "You paid ${formatCurrency(amount)}. Others owe a total of ${formatCurrency(customTotal)}.",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = ExpenseColor,
+                                                    modifier = Modifier.padding(top = 8.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1089,6 +1217,116 @@ fun TransactionEntryScreen(
                         }
                     }
                 }
+                4 -> { // BORROW / LEND
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Target Selection
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Select Contact or Family Member:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            var targetDropdownExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                OutlinedButton(
+                                    onClick = { targetDropdownExpanded = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val targetText = selectedBorrowLendTarget?.let { id ->
+                                        if (id.startsWith("C_")) {
+                                            contacts.find { it.id == id.removePrefix("C_").toLong() }?.name
+                                        } else {
+                                            familyMembers.find { it.id == id.removePrefix("F_").toLong() }?.name?.let { "$it (Family)" }
+                                        }
+                                    } ?: "Select Contact"
+                                    Text(targetText)
+                                }
+                                DropdownMenu(expanded = targetDropdownExpanded, onDismissRequest = { targetDropdownExpanded = false }) {
+                                    contacts.forEach { contact ->
+                                        DropdownMenuItem(
+                                            text = { Text(contact.name) },
+                                            onClick = { selectedBorrowLendTarget = "C_${contact.id}"; targetDropdownExpanded = false }
+                                        )
+                                    }
+                                    familyMembers.forEach { member ->
+                                        DropdownMenuItem(
+                                            text = { Text("${member.name} (Family)") },
+                                            onClick = { selectedBorrowLendTarget = "F_${member.id}"; targetDropdownExpanded = false }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Direction Selection
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Direction:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                FilterChip(
+                                    selected = borrowLendDirection == TransactionDirection.BORROWED,
+                                    onClick = { borrowLendDirection = TransactionDirection.BORROWED },
+                                    label = { Text("I Borrowed (Got Money)") },
+                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = TealGreenPrimary.copy(alpha = 0.2f))
+                                )
+                                FilterChip(
+                                    selected = borrowLendDirection == TransactionDirection.LENT,
+                                    onClick = { borrowLendDirection = TransactionDirection.LENT },
+                                    label = { Text("I Lent (Gave Money)") },
+                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = ExpenseColor.copy(alpha = 0.2f))
+                                )
+                            }
+                        }
+
+                        // Wallet Selection
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Which Wallet was affected?", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(WalletType.EXPENSE_WALLET, WalletType.SAVINGS_WALLET, WalletType.TEMPORARY_WALLET, WalletType.CREDIT_CARD).forEach { wType ->
+                                    FilterChip(
+                                        selected = borrowLendWallet == wType,
+                                        onClick = { borrowLendWallet = wType },
+                                        label = { 
+                                            Text(
+                                                when(wType) {
+                                                    WalletType.EXPENSE_WALLET -> "Expense"
+                                                    WalletType.SAVINGS_WALLET -> "Savings"
+                                                    WalletType.CREDIT_CARD -> "Credit Card"
+                                                    else -> "Temporary"
+                                                }
+                                            ) 
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                                    )
+                                }
+                            }
+                            if (borrowLendWallet == WalletType.TEMPORARY_WALLET) {
+                                var tempDropdown by remember { mutableStateOf(false) }
+                                Box {
+                                    OutlinedButton(onClick = { tempDropdown = true }) {
+                                        Text(selectedBorrowLendCustomWallet?.name ?: "Select Temp Wallet")
+                                    }
+                                    DropdownMenu(expanded = tempDropdown, onDismissRequest = { tempDropdown = false }) {
+                                        customWallets.forEach { cw ->
+                                            DropdownMenuItem(text = { Text(cw.name) }, onClick = { selectedBorrowLendCustomWallet = cw; tempDropdown = false })
+                                        }
+                                    }
+                                }
+                            }
+                            if (borrowLendWallet == WalletType.CREDIT_CARD) {
+                                var cardDropdown by remember { mutableStateOf(false) }
+                                Box {
+                                    OutlinedButton(onClick = { cardDropdown = true }) {
+                                        Text(selectedBorrowLendCreditCard?.cardName ?: "Select Credit Card")
+                                    }
+                                    DropdownMenu(expanded = cardDropdown, onDismissRequest = { cardDropdown = false }) {
+                                        creditCards.forEach { card ->
+                                            DropdownMenuItem(text = { Text(card.cardName) }, onClick = { selectedBorrowLendCreditCard = card; cardDropdown = false })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -1110,25 +1348,57 @@ fun TransactionEntryScreen(
 
                     when (selectedTabIndex) {
                         0 -> { // Personal Expense (can be expense wallet vs credit card)
+                            var splits = emptyList<TransactionSplit>()
+                            if (isSplittingExpense) {
+                                val numChecked = selectedSplitEntities.values.count { it }
+                                if (numChecked > 0) {
+                                    splits = selectedSplitEntities.filterValues { it }.keys.mapNotNull { id ->
+                                        val splitAmount = if (isEqualSplit) {
+                                            amount / (numChecked + 1)
+                                        } else {
+                                            customSplitAmounts[id]?.toDoubleOrNull() ?: return@mapNotNull null
+                                        }
+                                        if (id.startsWith("C_")) {
+                                            TransactionSplit(transactionId = 0L, contactId = id.removePrefix("C_").toLong(), amount = splitAmount, isSettled = false)
+                                        } else {
+                                            TransactionSplit(transactionId = 0L, familyMemberId = id.removePrefix("F_").toLong(), amount = splitAmount, isSettled = false)
+                                        }
+                                    }
+                                }
+                            }
                             if (selectedExpenseWalletType == WalletType.CREDIT_CARD) {
-                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.CREDIT_CARD, null, null, null, transactionDate, selectedCategory, selectedCreditCard?.id, null, null)
+                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.CREDIT_CARD, null, null, null, transactionDate, selectedCategory, selectedCreditCard?.id, null, null, null, splits)
                             } else if (selectedExpenseWalletType == WalletType.TEMPORARY_WALLET) {
-                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.TEMPORARY_WALLET, null, null, null, transactionDate, selectedCategory, null, selectedCustomWalletSource?.id, null)
+                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.TEMPORARY_WALLET, null, null, null, transactionDate, selectedCategory, null, selectedCustomWalletSource?.id, null, null, splits)
                             } else {
-                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.EXPENSE_WALLET, null, null, null, transactionDate, selectedCategory, null, null, null)
+                                onSubmitTransaction(amount, notes, TransactionType.PERSONAL_EXPENSE, WalletType.EXPENSE_WALLET, null, null, null, transactionDate, selectedCategory, null, null, null, null, splits)
                             }
                         }
                         1 -> { // Personal Income
-                            onSubmitTransaction(amount, notes, TransactionType.PERSONAL_INCOME, incomeDepositWallet, null, null, null, transactionDate, selectedCategory, null, if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null)
+                            onSubmitTransaction(amount, notes, TransactionType.PERSONAL_INCOME, incomeDepositWallet, null, null, null, transactionDate, selectedCategory, null, if (incomeDepositWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null, null, emptyList())
                         }
                         2 -> { // Family Transfer
-                            onSubmitTransaction(amount, notes, TransactionType.FAMILY_TRANSFER, familyTargetWallet, null, familyMemberSelected!!.id, familyDirectionChoice, transactionDate, "Other", null, if (familyTargetWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null)
+                            onSubmitTransaction(amount, notes, TransactionType.FAMILY_TRANSFER, familyTargetWallet, null, familyMemberSelected!!.id, familyDirectionChoice, transactionDate, "Other", null, if (familyTargetWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null, null, emptyList())
                         }
                         3 -> { // Wallet Transfer
                             val cId = if (walletTransferSource == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null
                             val destCId = if (walletTransferDest == WalletType.TEMPORARY_WALLET) selectedCustomWalletDest?.id else null
                             val cardId = if (walletTransferDest == WalletType.CREDIT_CARD) selectedRepayCreditCard?.id else null
-                            onSubmitTransaction(amount, notes, TransactionType.WALLET_TRANSFER, walletTransferSource, walletTransferDest, null, null, transactionDate, "Other", cardId, cId, destCId)
+                            onSubmitTransaction(amount, notes, TransactionType.WALLET_TRANSFER, walletTransferSource, walletTransferDest, null, null, transactionDate, "Other", cardId, cId, destCId, null, emptyList())
+                        }
+                        4 -> { // Borrow / Lend
+                            if (selectedBorrowLendTarget == null) {
+                                familyError = "Please select a contact or family member."
+                                return@Button
+                            }
+                            val isContact = selectedBorrowLendTarget!!.startsWith("C_")
+                            val contactId = if (isContact) selectedBorrowLendTarget!!.removePrefix("C_").toLong() else null
+                            val memberId = if (!isContact) selectedBorrowLendTarget!!.removePrefix("F_").toLong() else null
+                            
+                            val cId = if (borrowLendWallet == WalletType.TEMPORARY_WALLET) selectedBorrowLendCustomWallet?.id else null
+                            val cardId = if (borrowLendWallet == WalletType.CREDIT_CARD) selectedBorrowLendCreditCard?.id else null
+                            
+                            onSubmitTransaction(amount, notes, TransactionType.BORROW_LEND, borrowLendWallet, null, memberId, borrowLendDirection, transactionDate, "Other", cardId, cId, null, contactId, emptyList())
                         }
                     }
                 },

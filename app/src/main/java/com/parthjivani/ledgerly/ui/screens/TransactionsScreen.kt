@@ -51,18 +51,21 @@ import com.parthjivani.ledgerly.ui.theme.*
 fun TransactionsScreen(
     viewModel: LedgerlyViewModel,
     onAddTransactionClick: () -> Unit,
-    onEditTransactionClick: (Transaction) -> Unit
+    onEditTransactionClick: (Transaction) -> Unit,
+    onScrollStateChange: (Boolean) -> Unit = {}
 ) {
     val transactions by viewModel.allTransactions.collectAsState()
     val familyMembers by viewModel.allFamilyMembers.collectAsState()
     val creditCards by viewModel.allCreditCards.collectAsState()
     val customWallets by viewModel.allCustomWallets.collectAsState()
+    val contacts by viewModel.allContacts.collectAsState()
 
     // Filter states — stored in ViewModel so they survive navigation to/from the edit screen
     val walletFilter by viewModel.txWalletFilter.collectAsState()
     val cardFilter by viewModel.txCardFilter.collectAsState()
     val customWalletFilter by viewModel.txCustomWalletFilter.collectAsState()
     val memberFilter by viewModel.txMemberFilter.collectAsState()
+    val contactFilter by viewModel.txContactFilter.collectAsState()
     val categoryFilter by viewModel.txCategoryFilter.collectAsState()
     val typeFilter by viewModel.txTypeFilter.collectAsState()
     val searchQuery by viewModel.txSearchQuery.collectAsState()
@@ -71,11 +74,14 @@ fun TransactionsScreen(
     val listState = rememberLazyListState()
     var highlightedId by remember { mutableStateOf<Long?>(null) }
     val coroutineScope = rememberCoroutineScope()
-    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    
+    LaunchedEffect(showGoToTop) { onScrollStateChange(showGoToTop) }
 
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
     var selectedTransactionForOptions by remember { mutableStateOf<Transaction?>(null) }
+    var transactionToSplit by remember { mutableStateOf<Transaction?>(null) }
 
     var isSelectionMode by remember { mutableStateOf(false) }
     var showSupabaseSyncDialog by remember { mutableStateOf(false) }
@@ -98,6 +104,7 @@ fun TransactionsScreen(
         val matchesCard = cardFilter == null || t.creditCardId == cardFilter
         val matchesCustomWallet = customWalletFilter == null || t.customWalletId == customWalletFilter || t.destinationCustomWalletId == customWalletFilter
         val matchesMember = memberFilter == null || t.familyMemberId == memberFilter
+        val matchesContact = contactFilter == null || t.contactId == contactFilter
         val matchesCategory = categoryFilter == null || t.category.equals(categoryFilter, ignoreCase = true)
         val matchesType = typeFilter == null || t.type == typeFilter
 
@@ -112,7 +119,7 @@ fun TransactionsScreen(
             val typeMatch = t.type.name.lowercase().replace("_", " ").contains(q)
             notesMatch || categoryMatch || amountMatch || typeMatch
         }
-        matchesWallet && matchesCard && matchesCustomWallet && matchesMember && matchesCategory && matchesType && matchesSearch
+        matchesWallet && matchesCard && matchesCustomWallet && matchesMember && matchesContact && matchesCategory && matchesType && matchesSearch
     }
 
     LaunchedEffect(lastSavedId) {
@@ -635,6 +642,24 @@ fun TransactionsScreen(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (t.type == TransactionType.PERSONAL_EXPENSE) {
+                        Button(
+                            onClick = {
+                                transactionToSplit = t
+                                selectedTransactionForOptions = null
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.CallSplit, contentDescription = "Split", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Split", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
                     Button(
                         onClick = {
                             transactionToDelete = t
@@ -702,6 +727,88 @@ fun TransactionsScreen(
                 }
             },
             modifier = Modifier.testTag("delete_dialog")
+        )
+    }
+
+    if (transactionToSplit != null) {
+        val t = transactionToSplit!!
+        val selectedSplitEntities = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+        
+        AlertDialog(
+            onDismissRequest = { transactionToSplit = null },
+            title = { Text("Split Expense: ${formatCurrency(t.amount)}") },
+            text = {
+                Column {
+                    Text("Select contacts or family members to split this expense with equally.", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (contacts.isEmpty() && familyMembers.isEmpty()) {
+                        Text("No contacts or family members available.", color = MaterialTheme.colorScheme.error)
+                    } else {
+                        val splitOptions = buildList {
+                            addAll(contacts.map { Pair("C_${it.id}", it.name) })
+                            addAll(familyMembers.map { Pair("F_${it.id}", "${it.name} (Family)") })
+                        }
+                        
+                        Column(modifier = Modifier.heightIn(max = 250.dp).verticalScroll(rememberScrollState())) {
+                            splitOptions.forEach { (id, name) ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        selectedSplitEntities[id] = !(selectedSplitEntities[id] ?: false)
+                                    }.padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = selectedSplitEntities[id] == true,
+                                        onCheckedChange = { selectedSplitEntities[id] = it }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(name, fontSize = 14.sp)
+                                }
+                            }
+                        }
+                        
+                        val numChecked = selectedSplitEntities.values.count { it }
+                        if (numChecked > 0) {
+                            val splitAmount = t.amount / (numChecked + 1)
+                            Text(
+                                "You and $numChecked other(s) will each owe ${formatCurrency(splitAmount)}.",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                val numChecked = selectedSplitEntities.values.count { it }
+                Button(
+                    onClick = {
+                        if (numChecked > 0) {
+                            val splitAmount = t.amount / (numChecked + 1)
+                            val splits = selectedSplitEntities.filterValues { it }.keys.map { id ->
+                                if (id.startsWith("C_")) {
+                                    TransactionSplit(transactionId = t.id, contactId = id.removePrefix("C_").toLong(), amount = splitAmount, isSettled = false)
+                                } else {
+                                    TransactionSplit(transactionId = t.id, familyMemberId = id.removePrefix("F_").toLong(), amount = splitAmount, isSettled = false)
+                                }
+                            }
+                            viewModel.splitTransactionRetroactively(t.id, splits)
+                        }
+                        transactionToSplit = null
+                    },
+                    enabled = numChecked > 0
+                ) {
+                    Text("Confirm Split")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { transactionToSplit = null }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 

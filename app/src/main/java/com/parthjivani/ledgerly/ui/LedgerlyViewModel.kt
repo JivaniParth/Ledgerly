@@ -19,6 +19,12 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     val allFamilyMembers: StateFlow<List<FamilyMember>> = repository.allFamilyMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allContacts: StateFlow<List<Contact>> = repository.allContacts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allTransactionSplits: StateFlow<List<TransactionSplit>> = repository.allTransactionSplits
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Use Lazily so the last value is kept in cache indefinitely — prevents balance showing as
     // 0.0 after the app is killed and reopened (WhileSubscribed resets to initial on re-subscribe)
     val expenseWalletBalance: StateFlow<Double> = repository.expenseWalletBalance
@@ -65,6 +71,9 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     private val _txMemberFilter = MutableStateFlow<Long?>(null)
     val txMemberFilter: StateFlow<Long?> = _txMemberFilter.asStateFlow()
 
+    private val _txContactFilter = MutableStateFlow<Long?>(null)
+    val txContactFilter: StateFlow<Long?> = _txContactFilter.asStateFlow()
+
     private val _txCategoryFilter = MutableStateFlow<String?>(null)
     val txCategoryFilter: StateFlow<String?> = _txCategoryFilter.asStateFlow()
 
@@ -80,6 +89,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     fun setTxWalletFilter(v: WalletType?) { _txWalletFilter.value = v }
     fun setTxCardFilter(v: Long?) { _txCardFilter.value = v }
     fun setTxMemberFilter(v: Long?) { _txMemberFilter.value = v }
+    fun setTxContactFilter(v: Long?) { _txContactFilter.value = v }
     fun setTxCategoryFilter(v: String?) { _txCategoryFilter.value = v }
     fun setTxTypeFilter(v: TransactionType?) { _txTypeFilter.value = v }
     fun setTxCustomWalletFilter(v: Long?) { _txCustomWalletFilter.value = v }
@@ -88,6 +98,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         _txWalletFilter.value = null
         _txCardFilter.value = null
         _txMemberFilter.value = null
+        _txContactFilter.value = null
         _txCategoryFilter.value = null
         _txTypeFilter.value = null
         _txCustomWalletFilter.value = null
@@ -389,7 +400,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
 
     fun updateFamilyMember(member: FamilyMember) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.insertFamilyMember(member)
+            repository.updateFamilyMember(member)
             try {
                 SupabaseClient.api?.let { api ->
                     api.upsertFamilyMembers(listOf(member.toSupabase()))
@@ -410,6 +421,73 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    // Contact actions
+    fun addContact(name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val contact = Contact(name = name)
+            repository.insertContact(contact)
+            // Note: Add contact sync if contacts table is added to Supabase API
+        }
+    }
+
+    fun updateContact(contact: Contact) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateContact(contact)
+            // Note: Add contact sync if contacts table is added to Supabase API
+        }
+    }
+
+    fun deleteContact(contact: Contact) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteContact(contact)
+            // Note: Add contact sync if contacts table is added to Supabase API
+        }
+    }
+
+    fun settleUpContact(contactId: Long, walletToReceive: WalletType, customWalletId: Long? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Settle all splits
+            val splits = repository.allTransactionSplits.first().filter { it.contactId == contactId && !it.isSettled }
+            val amount = splits.sumOf { it.amount }
+            if (amount <= 0) return@launch
+            
+            repository.settleSplitsForContact(contactId)
+            
+            // Add a RECEIVED_FROM_THEM transaction to the wallet
+            addTransaction(
+                amount = amount,
+                notes = "Settled up splits",
+                type = TransactionType.BORROW_LEND,
+                sourceWallet = walletToReceive,
+                direction = TransactionDirection.BORROWED,
+                contactId = contactId,
+                customWalletId = customWalletId
+            )
+        }
+    }
+
+    fun settleUpFamilyMember(familyMemberId: Long, walletToReceive: WalletType, customWalletId: Long? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Settle all splits
+            val splits = repository.allTransactionSplits.first().filter { it.familyMemberId == familyMemberId && !it.isSettled }
+            val amount = splits.sumOf { it.amount }
+            if (amount <= 0) return@launch
+            
+            repository.settleSplitsForFamilyMember(familyMemberId)
+            
+            // Add a RECEIVED_FROM_THEM transaction to the wallet
+            addTransaction(
+                amount = amount,
+                notes = "Settled up splits",
+                type = TransactionType.BORROW_LEND,
+                sourceWallet = walletToReceive,
+                direction = TransactionDirection.BORROWED,
+                familyMemberId = familyMemberId,
+                customWalletId = customWalletId
+            )
         }
     }
 
@@ -537,7 +615,9 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         category: String = "Other",
         creditCardId: Long? = null,
         customWalletId: Long? = null,
-        destinationCustomWalletId: Long? = null
+        destinationCustomWalletId: Long? = null,
+        contactId: Long? = null,
+        splits: List<TransactionSplit> = emptyList()
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val tx = Transaction(
@@ -552,9 +632,16 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 category = category,
                 creditCardId = creditCardId,
                 customWalletId = customWalletId,
-                destinationCustomWalletId = destinationCustomWalletId
+                destinationCustomWalletId = destinationCustomWalletId,
+                contactId = contactId
             )
             val id = repository.insertTransaction(tx)
+            
+            if (splits.isNotEmpty()) {
+                val splitsWithTxId = splits.map { it.copy(transactionId = id) }
+                repository.insertTransactionSplits(splitsWithTxId)
+            }
+            
             _lastSavedTransactionId.value = id
             try {
                 SupabaseClient.api?.let { api ->
@@ -578,6 +665,13 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             }
         }
     }
+    
+    fun splitTransactionRetroactively(transactionId: Long, splits: List<TransactionSplit>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val splitsWithTxId = splits.map { it.copy(transactionId = transactionId) }
+            repository.insertTransactionSplits(splitsWithTxId)
+        }
+    }
 
     fun updateTransaction(
         id: Long,
@@ -592,7 +686,9 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         category: String = "Other",
         creditCardId: Long? = null,
         customWalletId: Long? = null,
-        destinationCustomWalletId: Long? = null
+        destinationCustomWalletId: Long? = null,
+        contactId: Long? = null,
+        splits: List<TransactionSplit> = emptyList()
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val tx = Transaction(
@@ -608,7 +704,8 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 category = category,
                 creditCardId = creditCardId,
                 customWalletId = customWalletId,
-                destinationCustomWalletId = destinationCustomWalletId
+                destinationCustomWalletId = destinationCustomWalletId,
+                contactId = contactId
             )
             val savedId = repository.insertTransaction(tx)
             _lastSavedTransactionId.value = savedId
@@ -632,6 +729,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 repository.clearAllBudgetGoals()
                 repository.clearAllSavingsGoals()
                 repository.clearAllRecurringTransactions()
+                repository.clearAllContacts()
             } catch (e: Exception) {
                 e.printStackTrace()
             }

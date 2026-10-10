@@ -53,9 +53,14 @@ fun FamilyHubScreen(
     onAddNewMember: (String, String) -> Unit,
     viewModel: LedgerlyViewModel,
     onFamilyMemberClick: (Long) -> Unit,
-    onCreditCardClick: (Long) -> Unit
+    onCreditCardClick: (Long) -> Unit,
+    onScrollStateChange: (Boolean) -> Unit = {}
 ) {
     var selectedHubTab by remember { mutableStateOf(0) } // 0 = Members, 1 = Credit Cards
+    
+    val listState = rememberLazyListState()
+    val isScrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    LaunchedEffect(isScrolled) { onScrollStateChange(isScrolled) }
 
     // Member form values
     var inlineFormExpanded by remember { mutableStateOf(false) }
@@ -353,6 +358,7 @@ fun FamilyHubScreen(
                     }
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.weight(1f).testTag("family_members_list")
                     ) {
                         items(familyMembers) { fm ->
@@ -504,6 +510,7 @@ fun FamilyHubScreen(
                     }
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {

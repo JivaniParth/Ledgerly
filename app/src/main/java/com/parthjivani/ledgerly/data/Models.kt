@@ -14,12 +14,15 @@ enum class TransactionType {
     PERSONAL_INCOME,
     PERSONAL_EXPENSE,
     FAMILY_TRANSFER,
-    WALLET_TRANSFER
+    WALLET_TRANSFER,
+    BORROW_LEND
 }
 
 enum class TransactionDirection {
     RECEIVED_FROM_THEM,
-    GIVEN_TO_THEM
+    GIVEN_TO_THEM,
+    BORROWED,
+    LENT
 }
 
 @Entity(tableName = "family_members")
@@ -44,7 +47,8 @@ data class Transaction(
     val creditCardId: Long? = null,            // Used for CREDIT_CARD
     val recurringTransactionId: Long? = null,  // Links to the recurring transaction that created this
     val customWalletId: Long? = null,          // Used for source TEMPORARY_WALLET
-    val destinationCustomWalletId: Long? = null // Used for destination TEMPORARY_WALLET
+    val destinationCustomWalletId: Long? = null, // Used for destination TEMPORARY_WALLET
+    val contactId: Long? = null                // Used for BORROW_LEND
 )
 
 @Entity(tableName = "custom_wallets")
@@ -96,4 +100,20 @@ data class RecurringTransaction(
     val lastAppliedDate: Long,
     val nextDueDate: Long,
     val isActive: Boolean = true
+)
+
+@Entity(tableName = "contacts")
+data class Contact(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String
+)
+
+@Entity(tableName = "transaction_splits")
+data class TransactionSplit(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val transactionId: Long,
+    val amount: Double,
+    val contactId: Long? = null,
+    val familyMemberId: Long? = null,
+    val isSettled: Boolean = false
 )

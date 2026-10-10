@@ -9,6 +9,7 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -18,6 +19,9 @@ interface FamilyMemberDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFamilyMember(member: FamilyMember): Long
+
+    @Update
+    suspend fun updateFamilyMember(member: FamilyMember)
 
     @Delete
     suspend fun deleteFamilyMember(member: FamilyMember)
@@ -140,6 +144,54 @@ interface CustomWalletDao {
     suspend fun clearAllCustomWallets()
 }
 
+@Dao
+interface ContactDao {
+    @Query("SELECT * FROM contacts ORDER BY name ASC")
+    fun getAllContactsFlow(): Flow<List<Contact>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertContact(contact: Contact): Long
+
+    @Update
+    suspend fun updateContact(contact: Contact)
+
+    @Delete
+    suspend fun deleteContact(contact: Contact)
+
+    @Query("SELECT * FROM contacts WHERE id = :id LIMIT 1")
+    suspend fun getContactById(id: Long): Contact?
+
+    @Query("DELETE FROM contacts")
+    suspend fun clearAllContacts()
+}
+
+@Dao
+interface TransactionSplitDao {
+    @Query("SELECT * FROM transaction_splits WHERE transactionId = :transactionId")
+    fun getSplitsForTransaction(transactionId: Long): Flow<List<TransactionSplit>>
+
+    @Query("SELECT * FROM transaction_splits WHERE contactId = :contactId OR familyMemberId = :familyMemberId")
+    fun getSplitsForPerson(contactId: Long?, familyMemberId: Long?): Flow<List<TransactionSplit>>
+    
+    @Query("SELECT * FROM transaction_splits")
+    fun getAllSplitsFlow(): Flow<List<TransactionSplit>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSplit(split: TransactionSplit): Long
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSplits(splits: List<TransactionSplit>)
+
+    @Delete
+    suspend fun deleteSplit(split: TransactionSplit)
+
+    @Query("UPDATE transaction_splits SET isSettled = 1 WHERE contactId = :contactId")
+    suspend fun settleSplitsForContact(contactId: Long)
+    
+    @Query("UPDATE transaction_splits SET isSettled = 1 WHERE familyMemberId = :familyMemberId")
+    suspend fun settleSplitsForFamilyMember(familyMemberId: Long)
+}
+
 class Converters {
     @TypeConverter
     fun fromWalletType(value: WalletType): String {
@@ -181,9 +233,11 @@ class Converters {
         SavingsGoal::class,
         RecurringTransaction::class,
         CreditCard::class,
-        CustomWallet::class
+        CustomWallet::class,
+        Contact::class,
+        TransactionSplit::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -196,4 +250,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recurringTransactionDao(): RecurringTransactionDao
     abstract fun creditCardDao(): CreditCardDao
     abstract fun customWalletDao(): CustomWalletDao
+    abstract fun contactDao(): ContactDao
+    abstract fun transactionSplitDao(): TransactionSplitDao
 }

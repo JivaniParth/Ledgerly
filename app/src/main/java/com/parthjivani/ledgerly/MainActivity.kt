@@ -44,13 +44,26 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create contacts table
+                db.execSQL("CREATE TABLE IF NOT EXISTS `contacts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)")
+                
+                // Create transaction_splits table
+                db.execSQL("CREATE TABLE IF NOT EXISTS `transaction_splits` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `transactionId` INTEGER NOT NULL, `amount` REAL NOT NULL, `contactId` INTEGER, `familyMemberId` INTEGER, `isSettled` INTEGER NOT NULL)")
+                
+                // Add contactId to transactions
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `contactId` INTEGER")
+            }
+        }
+
         // Setup database and repository singletons
         database = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
             "ledgerly_database"
         )
-        .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+        .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
         .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
 
@@ -62,7 +75,9 @@ class MainActivity : ComponentActivity() {
             database.savingsGoalDao(),
             database.recurringTransactionDao(),
             database.creditCardDao(),
-            database.customWalletDao()
+            database.customWalletDao(),
+            database.contactDao(),
+            database.transactionSplitDao()
         )
 
         enableEdgeToEdge()

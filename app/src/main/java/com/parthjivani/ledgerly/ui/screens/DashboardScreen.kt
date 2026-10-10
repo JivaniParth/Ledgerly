@@ -57,7 +57,8 @@ fun DashboardScreen(
     onNavigateToAnalytics: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    viewModel: LedgerlyViewModel
+    viewModel: LedgerlyViewModel,
+    onScrollStateChange: (Boolean) -> Unit = {}
 ) {
     val budgetGoals by viewModel.allBudgetGoals.collectAsState()
     val savingsGoals by viewModel.allSavingsGoals.collectAsState()
@@ -234,6 +235,8 @@ fun DashboardScreen(
 
             // ── Analytics Summary (replaces Recent Transactions) ──────────────────────────────────
             val scrollableContent = rememberScrollState()
+            val isScrolled by remember { derivedStateOf { scrollableContent.value > 0 } }
+            LaunchedEffect(isScrolled) { onScrollStateChange(isScrolled) }
             Column(
                 modifier = Modifier
                     .weight(1f)

@@ -36,3 +36,7 @@ my-upload-keys.keystore
 my-upload-keys
 
 /Screenshots
+
+# Archives and binaries
+*.zip
+gradle/wrapper/*.zip

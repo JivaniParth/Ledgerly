@@ -11,9 +11,13 @@ class LedgerlyRepository(
     private val savingsGoalDao: SavingsGoalDao,
     private val recurringTransactionDao: RecurringTransactionDao,
     private val creditCardDao: CreditCardDao,
-    private val customWalletDao: CustomWalletDao
+    private val customWalletDao: CustomWalletDao,
+    private val contactDao: ContactDao,
+    private val transactionSplitDao: TransactionSplitDao
 ) {
     val allFamilyMembers: Flow<List<FamilyMember>> = familyMemberDao.getAllFamilyMembers()
+    val allContacts: Flow<List<Contact>> = contactDao.getAllContactsFlow()
+    val allTransactionSplits: Flow<List<TransactionSplit>> = transactionSplitDao.getAllSplitsFlow()
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
     val allCustomWallets: Flow<List<CustomWallet>> = customWalletDao.getAllCustomWalletsFlow()
     val allBudgetGoals: Flow<List<BudgetGoal>> = budgetGoalDao.getAllBudgetGoalsFlow()
@@ -94,6 +98,9 @@ class LedgerlyRepository(
     suspend fun insertFamilyMember(member: FamilyMember): Long =
         familyMemberDao.insertFamilyMember(member)
 
+    suspend fun updateFamilyMember(member: FamilyMember) =
+        familyMemberDao.updateFamilyMember(member)
+
     suspend fun deleteFamilyMember(member: FamilyMember) =
         familyMemberDao.deleteFamilyMember(member)
 
@@ -114,6 +121,18 @@ class LedgerlyRepository(
 
     suspend fun clearAllTransactions() = transactionDao.clearAllTransactions()
 
+    suspend fun insertContact(contact: Contact): Long = contactDao.insertContact(contact)
+    suspend fun updateContact(contact: Contact) = contactDao.updateContact(contact)
+    suspend fun deleteContact(contact: Contact) = contactDao.deleteContact(contact)
+    suspend fun clearAllContacts() = contactDao.clearAllContacts()
+
+    suspend fun insertTransactionSplit(split: TransactionSplit): Long = transactionSplitDao.insertSplit(split)
+    suspend fun insertTransactionSplits(splits: List<TransactionSplit>) = transactionSplitDao.insertSplits(splits)
+    suspend fun deleteTransactionSplit(split: TransactionSplit) = transactionSplitDao.deleteSplit(split)
+    fun getSplitsForTransaction(transactionId: Long): Flow<List<TransactionSplit>> = transactionSplitDao.getSplitsForTransaction(transactionId)
+    suspend fun settleSplitsForContact(contactId: Long) = transactionSplitDao.settleSplitsForContact(contactId)
+    suspend fun settleSplitsForFamilyMember(familyMemberId: Long) = transactionSplitDao.settleSplitsForFamilyMember(familyMemberId)
+
     suspend fun clearAllLocalData() {
         familyMemberDao.clearAllFamilyMembers()
         transactionDao.clearAllTransactions()
@@ -123,6 +142,7 @@ class LedgerlyRepository(
         recurringTransactionDao.clearAllRecurringTransactions()
         appSettingDao.clearAllSettings()
         customWalletDao.clearAllCustomWallets()
+        contactDao.clearAllContacts()
     }
     companion object {
         fun calculateExpenseBalance(transactions: List<Transaction>): Double {
@@ -139,11 +159,11 @@ class LedgerlyRepository(
                             balance -= t.amount
                         }
                     }
-                    TransactionType.FAMILY_TRANSFER -> {
+                    TransactionType.FAMILY_TRANSFER, TransactionType.BORROW_LEND -> {
                         if (t.sourceWallet == WalletType.EXPENSE_WALLET || t.destinationWallet == WalletType.EXPENSE_WALLET) {
-                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM) {
+                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM || t.direction == TransactionDirection.BORROWED) {
                                 balance += t.amount
-                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM) {
+                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM || t.direction == TransactionDirection.LENT) {
                                 balance -= t.amount
                             }
                         }
@@ -175,11 +195,11 @@ class LedgerlyRepository(
                             balance -= t.amount
                         }
                     }
-                    TransactionType.FAMILY_TRANSFER -> {
+                    TransactionType.FAMILY_TRANSFER, TransactionType.BORROW_LEND -> {
                         if (t.sourceWallet == WalletType.SAVINGS_WALLET || t.destinationWallet == WalletType.SAVINGS_WALLET) {
-                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM) {
+                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM || t.direction == TransactionDirection.BORROWED) {
                                 balance += t.amount
-                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM) {
+                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM || t.direction == TransactionDirection.LENT) {
                                 balance -= t.amount
                             }
                         }
@@ -225,11 +245,11 @@ class LedgerlyRepository(
                     TransactionType.PERSONAL_EXPENSE -> {
                         if (isSourceThisWallet) balance -= t.amount
                     }
-                    TransactionType.FAMILY_TRANSFER -> {
+                    TransactionType.FAMILY_TRANSFER, TransactionType.BORROW_LEND -> {
                         if (isSourceThisWallet || isDestThisWallet) {
-                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM) {
+                            if (t.direction == TransactionDirection.RECEIVED_FROM_THEM || t.direction == TransactionDirection.BORROWED) {
                                 balance += t.amount
-                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM) {
+                            } else if (t.direction == TransactionDirection.GIVEN_TO_THEM || t.direction == TransactionDirection.LENT) {
                                 balance -= t.amount
                             }
                         }

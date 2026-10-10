@@ -187,15 +187,40 @@ fun MainAppContainer(viewModel: LedgerlyViewModel) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            AnimatedContent(
-                targetState = currentScreen,
-                transitionSpec = {
-                    (fadeIn() + slideInHorizontally { width -> width / 3 })
-                        .togetherWith(fadeOut() + slideOutHorizontally { width -> -width / 3 })
-                },
-                label = "ScreenTransition"
-            ) { targetScreen ->
-                when (targetScreen) {
+            var isSwipeEnabled by remember { mutableStateOf(true) }
+            val mainTabs = remember { AppScreen.values().filter { it.isMainTab } }
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                initialPage = mainTabs.indexOf(currentScreen).coerceAtLeast(0),
+                pageCount = { mainTabs.size }
+            )
+            val coroutineScope = rememberCoroutineScope()
+
+            // Sync pager to currentScreen if currentScreen is changed from outside (e.g., bottom nav)
+            LaunchedEffect(currentScreen) {
+                val index = mainTabs.indexOf(currentScreen)
+                if (index != -1 && pagerState.currentPage != index) {
+                    pagerState.animateScrollToPage(index)
+                }
+            }
+
+            // Sync currentScreen to pager if pager is swiped
+            LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
+                if (!pagerState.isScrollInProgress) {
+                    val newScreen = mainTabs[pagerState.currentPage]
+                    if (currentScreen != newScreen && mainTabs.contains(currentScreen)) {
+                        navigateTo(newScreen)
+                    }
+                }
+            }
+            
+            // Render the HorizontalPager always as the base layer
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pagerState,
+                userScrollEnabled = isSwipeEnabled,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val screen = mainTabs[page]
+                when (screen) {
                     AppScreen.DASHBOARD -> DashboardScreen(
                         expenseBalance = expenseBalance,
                         savingsBalance = savingsBalance,
@@ -208,11 +233,13 @@ fun MainAppContainer(viewModel: LedgerlyViewModel) {
                         onNavigateToAnalytics = { navigateTo(AppScreen.PROJECTOR) },
                         onNavigateToProfile = { navigateTo(AppScreen.PROFILE) },
                         onNavigateToSettings = { navigateTo(AppScreen.SETTINGS) },
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        onScrollStateChange = { isScrolled -> isSwipeEnabled = !isScrolled }
                     )
                     AppScreen.WALLETS -> WalletsScreen(
                         viewModel = viewModel,
-                        onNavigateToTransactions = { navigateTo(AppScreen.TRANSACTIONS) }
+                        onNavigateToTransactions = { navigateTo(AppScreen.TRANSACTIONS) },
+                        onScrollStateChange = { isScrolled -> isSwipeEnabled = !isScrolled }
                     )
                     AppScreen.TRANSACTIONS -> TransactionsScreen(
                         viewModel = viewModel,
@@ -223,30 +250,8 @@ fun MainAppContainer(viewModel: LedgerlyViewModel) {
                         onEditTransactionClick = { transaction ->
                             editingTransaction = transaction
                             navigateTo(AppScreen.ENTRY)
-                        }
-                    )
-                    AppScreen.ENTRY -> TransactionEntryScreen(
-                        familyMembers = familyMembers,
-                        editingTransaction = editingTransaction,
-                        onSubmitTransaction = { amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId ->
-                            if (editingTransaction != null) {
-                                viewModel.updateTransaction(editingTransaction!!.id, amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId)
-                            } else {
-                                viewModel.addTransaction(amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId)
-                            }
-                            editingTransaction = null
-
-                            val updated = screenHistory.toMutableList()
-                            if (updated.size > 1 && updated.lastOrNull() == AppScreen.ENTRY) {
-                                updated.removeAt(updated.lastIndex)
-                                screenHistory = updated
-                                currentScreen = updated.last()
-                            } else {
-                                navigateTo(AppScreen.DASHBOARD)
-                            }
                         },
-                        onNavigateToFamily = { navigateTo(AppScreen.FAMILY) },
-                        viewModel = viewModel
+                        onScrollStateChange = { isScrolled -> isSwipeEnabled = !isScrolled }
                     )
                     AppScreen.FAMILY -> FamilyHubScreen(
                         familyMembers = familyMembers,
@@ -264,27 +269,69 @@ fun MainAppContainer(viewModel: LedgerlyViewModel) {
                             viewModel.setTxCardFilter(cardId)
                             viewModel.setTxMemberFilter(null)
                             navigateTo(AppScreen.TRANSACTIONS)
-                        }
+                        },
+                        onScrollStateChange = { isScrolled -> isSwipeEnabled = !isScrolled }
                     )
-                    AppScreen.PROJECTOR -> AnalyticsScreen(
-                        transactions = transactions,
-                        projectedAverage = projectedAverage,
-                        viewModel = viewModel
-                    )
-                    AppScreen.SETTINGS -> SettingsScreen(
-                        onNavigateBack = { navigateTo(AppScreen.DASHBOARD) },
-                        onNavigateToExcelImport = { navigateTo(AppScreen.EXCEL_IMPORT) },
-                        viewModel = viewModel
-                    )
-                    AppScreen.EXCEL_IMPORT -> ExcelImportScreen(
-                        onNavigateBack = { navigateTo(AppScreen.SETTINGS) },
-                        viewModel = viewModel
-                    )
-                    AppScreen.PROFILE -> ProfileScreen(
-                        onNavigateBack = { navigateTo(AppScreen.DASHBOARD) },
-                        onNavigateToSettings = { navigateTo(AppScreen.SETTINGS) },
-                        viewModel = viewModel
-                    )
+                    else -> {}
+                }
+            }
+            
+            // Render non-main tabs as overlays with AnimatedContent
+            if (!currentScreen.isMainTab) {
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        (slideInHorizontally { width -> width } + fadeIn())
+                            .togetherWith(slideOutHorizontally { width -> width } + fadeOut())
+                    },
+                    label = "OverlayTransition",
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+                ) { targetScreen ->
+                    when (targetScreen) {
+                        AppScreen.ENTRY -> TransactionEntryScreen(
+                            familyMembers = familyMembers,
+                            editingTransaction = editingTransaction,
+                            onSubmitTransaction = { amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId, contactId, splits ->
+                                if (editingTransaction != null) {
+                                    viewModel.updateTransaction(editingTransaction!!.id, amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId, contactId, splits)
+                                } else {
+                                    viewModel.addTransaction(amount, notes, type, source, dest, memberId, dir, date, category, creditCardId, customWalletId, destCustomWalletId, contactId, splits)
+                                }
+                                editingTransaction = null
+                                
+                                val updated = screenHistory.toMutableList()
+                                if (updated.size > 1 && updated.lastOrNull() == AppScreen.ENTRY) {
+                                    updated.removeAt(updated.lastIndex)
+                                    screenHistory = updated
+                                    currentScreen = updated.last()
+                                } else {
+                                    navigateTo(AppScreen.DASHBOARD)
+                                }
+                            },
+                            onNavigateToFamily = { navigateTo(AppScreen.FAMILY) },
+                            viewModel = viewModel
+                        )
+                        AppScreen.PROJECTOR -> AnalyticsScreen(
+                            transactions = transactions,
+                            projectedAverage = projectedAverage,
+                            viewModel = viewModel
+                        )
+                        AppScreen.SETTINGS -> SettingsScreen(
+                            onNavigateBack = { navigateTo(AppScreen.DASHBOARD) },
+                            onNavigateToExcelImport = { navigateTo(AppScreen.EXCEL_IMPORT) },
+                            viewModel = viewModel
+                        )
+                        AppScreen.EXCEL_IMPORT -> ExcelImportScreen(
+                            onNavigateBack = { navigateTo(AppScreen.SETTINGS) },
+                            viewModel = viewModel
+                        )
+                        AppScreen.PROFILE -> ProfileScreen(
+                            onNavigateBack = { navigateTo(AppScreen.DASHBOARD) },
+                            onNavigateToSettings = { navigateTo(AppScreen.SETTINGS) },
+                            viewModel = viewModel
+                        )
+                        else -> {}
+                    }
                 }
             }
         }
@@ -480,6 +527,7 @@ fun TransactionRow(
         }
         TransactionType.PERSONAL_INCOME -> "💰"
         TransactionType.WALLET_TRANSFER -> "⇄"
+        TransactionType.BORROW_LEND -> "🤝"
     }
 
     Card(
@@ -548,6 +596,7 @@ fun TransactionRow(
                         }
                     }
                     TransactionType.WALLET_TRANSFER -> "Wallet Transfer"
+                    TransactionType.BORROW_LEND -> if (transaction.direction == TransactionDirection.LENT) "Lent Money" else "Borrowed Money"
                 }
 
                 val subtitleText = when (transaction.type) {
@@ -570,6 +619,7 @@ fun TransactionRow(
                     TransactionType.WALLET_TRANSFER -> {
                         if (transaction.sourceWallet == WalletType.EXPENSE_WALLET) "Expense to Savings" else "Savings to Expense"
                     }
+                    TransactionType.BORROW_LEND -> if (transaction.direction == TransactionDirection.LENT) "Lent to contact" else "Borrowed from contact"
                 }
 
                 Text(
