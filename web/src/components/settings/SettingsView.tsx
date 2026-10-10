@@ -75,7 +75,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [newIncomeCat, setNewIncomeCat] = useState('');
 
   // Budget Goal State
-  const [budgetCat, setBudgetCat] = useState(expenseCategories[0] || 'Groceries');
+  const [budgetCat, setBudgetCat] = useState('Overall');
   const [budgetLimit, setBudgetLimit] = useState('');
 
   // Savings Goal State
@@ -212,7 +212,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onChange={(e) => setBudgetCat(e.target.value)}
               className="flex-1 px-3 py-1.5 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-xs font-medium"
             >
-              {expenseCategories.map((c) => (
+              {['Overall', ...expenseCategories.filter((c) => c.toLowerCase() !== 'overall')].map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -239,7 +239,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-            {budgetGoals.map((bg) => (
+            {[...budgetGoals]
+              .sort((a, b) => {
+                if (a.category.toLowerCase() === 'overall') return -1;
+                if (b.category.toLowerCase() === 'overall') return 1;
+                return a.category.localeCompare(b.category);
+              })
+              .map((bg) => (
               <div
                 key={bg.category}
                 className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 dark:bg-darkCard border border-lightBorder dark:border-darkBorder text-xs"

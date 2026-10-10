@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -59,18 +59,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isDeposit, setIsDeposit] = useState<boolean>(true);
   const [fundSubmitting, setFundSubmitting] = useState<boolean>(false);
 
+  // Helper to reliably parse transaction date
+  const getTxDateMs = (t: Transaction): number => {
+    if (typeof t.date === 'number') return t.date;
+    const parsed = new Date(t.date).getTime();
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   // Current Month Calculations
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-  const currentMonthTxs = transactions.filter((t) => t.date >= currentMonthStart);
+  const currentMonthTxs = transactions.filter((t) => getTxDateMs(t) >= currentMonthStart);
   const monthlyExpense = currentMonthTxs
-    .filter((t) => t.type === 'PERSONAL_EXPENSE')
+    .filter(
+      (t) =>
+        (t.type === 'PERSONAL_EXPENSE' && t.source_wallet !== 'TEMPORARY_WALLET') ||
+        (t.type === 'FAMILY_TRANSFER' && t.direction === 'GIVEN_TO_THEM' && t.source_wallet !== 'TEMPORARY_WALLET')
+    )
     .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
   const monthlyIncome = currentMonthTxs
-    .filter((t) => t.type === 'PERSONAL_INCOME')
+    .filter(
+      (t) =>
+        t.type === 'PERSONAL_INCOME' ||
+        (t.type === 'FAMILY_TRANSFER' && t.direction === 'RECEIVED_FROM_THEM')
+    )
     .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
   const netSavings = monthlyIncome - monthlyExpense;
+
+  const sortedBudgetGoals = useMemo(() => {
+    return [...budgetGoals].sort((a, b) => {
+      if (a.category.toLowerCase() === 'overall') return -1;
+      if (b.category.toLowerCase() === 'overall') return 1;
+      return a.category.localeCompare(b.category);
+    });
+  }, [budgetGoals]);
+
+  const overallBudgetGoal = useMemo(() => {
+    return budgetGoals.find((b) => b.category?.toLowerCase() === 'overall');
+  }, [budgetGoals]);
 
   // Credit Card with highest spend
   const topCard = creditCards.length > 0
@@ -211,9 +238,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="text-2xl lg:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
               {formatCurrency(monthlyProjection)}
             </div>
-            <p className="text-xs text-gray-500 dark:text-darkMuted mt-1">
-              Estimated expenses / month
-            </p>
+            {overallBudgetGoal && overallBudgetGoal.limit_amount > 0 ? (
+              <p className="text-xs text-gray-500 dark:text-darkMuted mt-1">
+                {monthlyProjection > overallBudgetGoal.limit_amount
+                  ? `📈 ${(((monthlyProjection - overallBudgetGoal.limit_amount) / overallBudgetGoal.limit_amount) * 100).toFixed(0)}% over Overall cap (${formatCurrency(overallBudgetGoal.limit_amount)})`
+                  : `📉 ${(((overallBudgetGoal.limit_amount - monthlyProjection) / overallBudgetGoal.limit_amount) * 100).toFixed(0)}% under Overall cap (${formatCurrency(overallBudgetGoal.limit_amount)})`}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 dark:text-darkMuted mt-1">
+                Estimated expenses / month
+              </p>
+            )}
           </div>
           <div className="flex items-center justify-between text-xs text-finance-blue font-medium">
             <span>View Projection Details</span>
@@ -278,7 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* ── Budget Goals Carousel / Grid ─────────────────────────────── */}
-      {budgetGoals.length > 0 && (
+      {sortedBudgetGoals.length > 0 && (
         <div className="p-5 rounded-2xl bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -288,14 +323,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </h3>
             </div>
             <span className="text-xs text-gray-500 dark:text-darkMuted">
-              {budgetGoals.length} Categories Tracked
+              {sortedBudgetGoals.length} Categories Tracked
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {budgetGoals.map((bg) => {
-              const spent = currentMonthTxs
-                .filter((t) => t.category === bg.category && t.type === 'PERSONAL_EXPENSE')
+            {sortedBudgetGoals.map((bg) => {
+              const isOverall = bg.category?.toLowerCase() === 'overall';
+              const spent = transactions
+                .filter((t) => {
+                  const txDate = getTxDateMs(t);
+                  if (txDate < currentMonthStart) return false;
+                  if (t.source_wallet === 'TEMPORARY_WALLET') return false;
+
+                  const matchesCategory =
+                    isOverall || (t.category && t.category.toLowerCase() === bg.category.toLowerCase());
+                  if (!matchesCategory) return false;
+
+                  return (
+                    t.type === 'PERSONAL_EXPENSE' ||
+                    (t.type === 'FAMILY_TRANSFER' && t.direction === 'GIVEN_TO_THEM')
+                  );
+                })
                 .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
               const pct = bg.limit_amount > 0 ? Math.round((spent / bg.limit_amount) * 100) : 0;
               const isOver = pct > 100;
