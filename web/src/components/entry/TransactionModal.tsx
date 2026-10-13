@@ -158,9 +158,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const tabLabels = ['Expense', 'Income', 'Family Transfer', 'Wallet Transfer', 'Borrow / Lend'];
 
+  const handleAmountChange = (newVal: string) => {
+    setAmount(newVal);
+    if (error) setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const evaluated = evaluateMathExpression(amount) || amount;
+    const cleanAmount = (amount || '').toString().replace(/,/g, '').trim();
+    const evaluated = evaluateMathExpression(cleanAmount) || cleanAmount;
     const numAmount = parseFloat(evaluated);
     if (isNaN(numAmount) || numAmount <= 0) {
       setError('Please enter a valid amount greater than 0.');
@@ -377,7 +383,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AmountInputField
               value={amount}
-              onChange={setAmount}
+              onChange={handleAmountChange}
               label="Amount"
               required
             />

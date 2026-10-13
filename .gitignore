@@ -40,3 +40,6 @@ my-upload-keys
 # Archives and binaries
 *.zip
 gradle/wrapper/*.zip
+
+# Developer files and folders
+screenshots/

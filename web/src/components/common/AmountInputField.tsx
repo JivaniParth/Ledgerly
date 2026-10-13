@@ -26,7 +26,7 @@ export const AmountInputField: React.FC<AmountInputFieldProps> = ({
 }) => {
   const [showCalculator, setShowCalculator] = useState(false);
 
-  const numericValue = parseFloat(value);
+  const numericValue = parseFloat((value || '').replace(/,/g, ''));
   const hasValidNumber = !isNaN(numericValue) && numericValue > 0;
 
   const handleBlur = () => {

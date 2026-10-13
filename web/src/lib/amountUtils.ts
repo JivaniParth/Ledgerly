@@ -131,7 +131,7 @@ export function formatIndianCurrency(amountStr: string): string {
  */
 export function evaluateMathExpression(expr: string): string {
   try {
-    let clean = expr.trim();
+    let clean = (expr || '').replace(/,/g, '').trim();
     while (clean.length > 0 && '+-*/.'.includes(clean[clean.length - 1])) {
       clean = clean.slice(0, -1).trim();
     }

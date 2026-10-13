@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Delete,
@@ -76,6 +77,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      e.stopPropagation();
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -136,9 +138,18 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
     ],
   ];
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col">
+  return createPortal(
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="px-5 py-4 border-b border-lightBorder dark:border-darkBorder flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -148,7 +159,12 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
             <h3 className="font-bold text-sm text-gray-900 dark:text-white">{title}</h3>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-darkCard transition-colors"
           >
             <X size={18} />
@@ -194,8 +210,13 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
             return (
               <button
+                type="button"
                 key={btn.key}
-                onClick={() => handleKeyPress(btn.key)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleKeyPress(btn.key);
+                }}
                 className={`h-12 rounded-2xl flex items-center justify-center text-base font-semibold transition-all active:scale-95 select-none ${bgClass}`}
               >
                 {btn.key === 'BACKSPACE' ? (
@@ -218,6 +239,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
           Type numbers & operators on physical keyboard or click buttons. Press Enter to confirm.
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
