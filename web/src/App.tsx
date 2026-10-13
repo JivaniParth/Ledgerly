@@ -13,6 +13,7 @@ import { SettingsView } from './components/settings/SettingsView';
 import { ProfileView } from './components/profile/ProfileView';
 import { ExcelImportWizard } from './components/excel/ExcelImportWizard';
 import { TransactionModal } from './components/entry/TransactionModal';
+import { CalculatorModal } from './components/common/CalculatorModal';
 import { AuthPage } from './pages/AuthPage';
 import { Transaction } from './lib/types';
 
@@ -22,6 +23,9 @@ const MainDashboardApp: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [collapsedSidebar, setCollapsedSidebar] = useState<boolean>(false);
+
+  // Global Calculator Modal State
+  const [showGlobalCalculator, setShowGlobalCalculator] = useState<boolean>(false);
 
   // Transaction Modal State
   const [showTransactionModal, setShowTransactionModal] = useState<boolean>(false);
@@ -104,6 +108,7 @@ const MainDashboardApp: React.FC = () => {
             setEditingTransaction(null);
             setShowTransactionModal(true);
           }}
+          onOpenCalculator={() => setShowGlobalCalculator(true)}
           title={getPageTitle(activeTab)}
         />
 
@@ -258,6 +263,13 @@ const MainDashboardApp: React.FC = () => {
         contacts={data.contacts}
         expenseCategories={data.expenseCategories}
         incomeCategories={data.incomeCategories}
+      />
+
+      {/* Global Calculator Modal */}
+      <CalculatorModal
+        isOpen={showGlobalCalculator}
+        onClose={() => setShowGlobalCalculator(false)}
+        title="Ledgerly Financial Calculator"
       />
     </div>
   );

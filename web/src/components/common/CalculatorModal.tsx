@@ -138,16 +138,16 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
     ],
   ];
 
-  return createPortal(
+  const modalContent = (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => {
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col"
+        className="bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -239,7 +239,8 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({
           Type numbers & operators on physical keyboard or click buttons. Press Enter to confirm.
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
