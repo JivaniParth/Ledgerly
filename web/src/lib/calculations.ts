@@ -104,28 +104,47 @@ export function calculateCustomWalletBalance(walletId: number, transactions: Tra
   return balance;
 }
 
-export function calculateCreditCardSpend(cardId: number, transactions: Transaction[]): number {
+/**
+ * Calculates current month's credit card usage / spend.
+ * Resets to 0.00 at the start of each month regardless of bill repayments,
+ * allowing the user to view exactly how much amount was used from this credit card in the current month.
+ */
+export function calculateCreditCardSpend(
+  cardId: number,
+  transactions: Transaction[],
+  monthOnly: boolean = true
+): number {
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
   let charges = 0.0;
-  let repayments = 0.0;
 
   for (const t of transactions) {
+    const txDate = typeof t.date === 'number' ? t.date : new Date(t.date).getTime();
+    if (monthOnly && txDate < currentMonthStart) {
+      continue;
+    }
+
     const amt = Math.abs(t.amount || 0);
-    if (t.credit_card_id === cardId) {
-      if (t.source_wallet === 'CREDIT_CARD') {
-        if (t.type === 'PERSONAL_EXPENSE') {
-          charges += amt;
-        } else if (t.type === 'FAMILY_TRANSFER' || t.type === 'BORROW_LEND') {
-          if (t.direction === 'GIVEN_TO_THEM' || t.direction === 'LENT') {
-            charges += amt;
-          }
-        }
-      }
-      if (t.type === 'WALLET_TRANSFER' && t.destination_wallet === 'CREDIT_CARD') {
-        repayments += amt;
+    if (t.credit_card_id === cardId && t.source_wallet === 'CREDIT_CARD') {
+      if (
+        t.type === 'PERSONAL_EXPENSE' ||
+        (t.type === 'FAMILY_TRANSFER' && t.direction === 'GIVEN_TO_THEM') ||
+        (t.type === 'BORROW_LEND' && t.direction === 'LENT')
+      ) {
+        charges += amt;
       }
     }
   }
-  return Math.max(0, charges - repayments);
+
+  return charges;
+}
+
+export function calculateCreditCardAllTimeSpend(
+  cardId: number,
+  transactions: Transaction[]
+): number {
+  return calculateCreditCardSpend(cardId, transactions, false);
 }
 
 export function calculate90DayOutflows(transactions: Transaction[], now: number = Date.now()): {

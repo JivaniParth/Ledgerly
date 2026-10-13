@@ -12,6 +12,8 @@ import {
   TransactionSplit,
 } from '../../lib/types';
 import { formatCurrency } from '../../lib/calculations';
+import { AmountInputField } from '../common/AmountInputField';
+import { evaluateMathExpression } from '../../lib/amountUtils';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -158,7 +160,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numAmount = parseFloat(amount);
+    const evaluated = evaluateMathExpression(amount) || amount;
+    const numAmount = parseFloat(evaluated);
     if (isNaN(numAmount) || numAmount <= 0) {
       setError('Please enter a valid amount greater than 0.');
       return;
@@ -372,20 +375,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
           {/* Amount & Date Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                Amount (₹)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-gray-900 dark:text-white text-base font-semibold focus:outline-none focus:ring-2 focus:ring-finance-blue"
-              />
-            </div>
+            <AmountInputField
+              value={amount}
+              onChange={setAmount}
+              label="Amount"
+              required
+            />
             <div>
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                 Date & Time

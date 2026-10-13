@@ -1,7 +1,8 @@
-import React from 'react';
-import { Plus, RefreshCw, Sun, Moon, Flame, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, RefreshCw, Sun, Moon, Flame, CheckCircle2, Calculator } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { CalculatorModal } from '../common/CalculatorModal';
 
 interface HeaderProps {
   streak: number;
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { isDark, setTheme } = useTheme();
   const { userName } = useAuth();
+  const [showCalculator, setShowCalculator] = useState(false);
 
   return (
     <header className="h-16 px-6 bg-white/80 dark:bg-darkSurface/80 backdrop-blur-md border-b border-lightBorder dark:border-darkBorder flex items-center justify-between sticky top-0 z-20">
@@ -43,6 +45,15 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Financial Calculator */}
+        <button
+          onClick={() => setShowCalculator(true)}
+          className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-darkMuted dark:hover:text-darkText hover:bg-gray-100 dark:hover:bg-darkCard transition-colors"
+          title="Open Financial Calculator"
+        >
+          <Calculator size={17} />
+        </button>
+
         {/* Sync status */}
         <button
           onClick={onRefresh}
@@ -76,6 +87,13 @@ export const Header: React.FC<HeaderProps> = ({
           {userName.charAt(0).toUpperCase()}
         </div>
       </div>
+
+      {/* Financial Calculator Modal */}
+      <CalculatorModal
+        isOpen={showCalculator}
+        onClose={() => setShowCalculator(false)}
+        title="Ledgerly Financial Calculator"
+      />
     </header>
   );
 };

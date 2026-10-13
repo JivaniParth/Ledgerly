@@ -25,6 +25,8 @@ import {
   calculateCustomWalletBalance,
   calculateCreditCardSpend,
 } from '../../lib/calculations';
+import { AmountInputField } from '../common/AmountInputField';
+import { evaluateMathExpression } from '../../lib/amountUtils';
 import { useTheme } from '../../context/ThemeContext';
 
 interface WalletsViewProps {
@@ -387,9 +389,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     </div>
 
                     <div>
-                      <p className="text-[11px] text-teal-100 uppercase tracking-wider">
-                        Current Outstanding Spend
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-teal-100 uppercase tracking-wider font-semibold">
+                          Used This Month
+                        </p>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/25 text-teal-200 font-medium">
+                          Resets on 1st
+                        </span>
+                      </div>
                       <div className="text-2xl font-extrabold">{formatCurrency(spent)}</div>
                       <p className="text-xs text-teal-200 mt-0.5">Cardholder: {card.owner_name}</p>
                     </div>
@@ -700,19 +707,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-xs font-semibold"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Credit Limit (₹)
-                </label>
-                <input
-                  type="number"
-                  required
-                  placeholder="e.g. 150000"
-                  value={cardLimit}
-                  onChange={(e) => setCardLimit(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-xs font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={cardLimit}
+                onChange={setCardLimit}
+                label="Credit Limit"
+                required
+              />
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                   Card Theme Color
@@ -738,7 +738,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <button
                 onClick={async () => {
                   if (!cardName.trim() || !cardOwner.trim()) return;
-                  const lim = parseFloat(cardLimit) || 0;
+                  const lim = parseFloat(evaluateMathExpression(cardLimit) || cardLimit) || 0;
                   if (editingCard) {
                     await onUpdateCreditCard({
                       ...editingCard,

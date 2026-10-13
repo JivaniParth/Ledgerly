@@ -19,7 +19,9 @@ import {
   BudgetGoal,
   CreditCard,
 } from '../../lib/types';
-import { formatCurrency, formatIndianDate } from '../../lib/calculations';
+import { formatCurrency, formatIndianDate, calculateCreditCardSpend } from '../../lib/calculations';
+import { AmountInputField } from '../common/AmountInputField';
+import { evaluateMathExpression } from '../../lib/amountUtils';
 import { useTheme } from '../../context/ThemeContext';
 
 interface DashboardViewProps {
@@ -99,14 +101,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return budgetGoals.find((b) => b.category?.toLowerCase() === 'overall');
   }, [budgetGoals]);
 
-  // Credit Card with highest spend
+  // Credit Card with highest current month spend (resets each month to 0.00)
   const topCard = creditCards.length > 0
     ? creditCards.reduce((top, card) => {
-        const spend = transactions
-          .filter((t) => t.source_wallet === 'CREDIT_CARD' && t.credit_card_id === card.id)
-          .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+        const spend = calculateCreditCardSpend(card.id, transactions, true);
         return spend > (top.spend || 0) ? { card, spend } : top;
-      }, { card: creditCards[0], spend: 0 })
+      }, { card: creditCards[0], spend: calculateCreditCardSpend(creditCards[0].id, transactions, true) })
     : null;
 
   // Recent 5 transactions
@@ -115,7 +115,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleFundSavings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSavingsGoal) return;
-    const val = parseFloat(fundAmount);
+    const evaluated = evaluateMathExpression(fundAmount) || fundAmount;
+    const val = parseFloat(evaluated);
     if (isNaN(val) || val <= 0) return;
 
     setFundSubmitting(true);
@@ -172,9 +173,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             className="p-6 rounded-2xl text-white shadow-lg relative overflow-hidden flex flex-col justify-between h-44"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider uppercase text-teal-100">
-                Credit Card Expenses
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold tracking-wider uppercase text-teal-100">
+                  Card Used This Month
+                </span>
+              </div>
               <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-sm">
                 C
               </div>
@@ -569,20 +572,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </button>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Amount (₹)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="0.00"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-sm font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={fundAmount}
+                onChange={setFundAmount}
+                label="Amount"
+                required
+              />
 
               <div className="flex justify-end gap-2 pt-2">
                 <button

@@ -27,6 +27,8 @@ import {
   TransactionType,
 } from '../../lib/types';
 import { formatCurrency, formatIndianDate, formatIndianDateTime } from '../../lib/calculations';
+import { AmountInputField } from '../common/AmountInputField';
+import { evaluateMathExpression } from '../../lib/amountUtils';
 import { useTheme } from '../../context/ThemeContext';
 
 interface SettingsViewProps {
@@ -330,7 +332,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onChange={(e) => setBudgetLimit(e.target.value)}
               onKeyDown={async (e) => {
                 if (e.key === 'Enter') {
-                  const lim = parseFloat(budgetLimit);
+                  const lim = parseFloat(evaluateMathExpression(budgetLimit) || budgetLimit);
                   if (isNaN(lim) || lim <= 0) return;
                   await onAddBudgetGoal(budgetCat, lim);
                   setBudgetLimit('');
@@ -340,7 +342,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             />
             <button
               onClick={async () => {
-                const lim = parseFloat(budgetLimit);
+                const lim = parseFloat(evaluateMathExpression(budgetLimit) || budgetLimit);
                 if (isNaN(lim) || lim <= 0) return;
                 await onAddBudgetGoal(budgetCat, lim);
                 setBudgetLimit('');
@@ -702,27 +704,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="font-semibold block mb-1">Target Amount (₹)</label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={savingTarget}
-                  onChange={(e) => setSavingTarget(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={savingTarget}
+                onChange={setSavingTarget}
+                label="Target Amount"
+                required
+              />
 
-              <div>
-                <label className="font-semibold block mb-1">Current Saved Amount (Optional)</label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={savingCurrent}
-                  onChange={(e) => setSavingCurrent(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={savingCurrent}
+                onChange={setSavingCurrent}
+                label="Current Saved Amount (Optional)"
+              />
 
               <div>
                 <label className="font-semibold block mb-1">Category (Overall or Specific)</label>
@@ -749,8 +742,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
               <button
                 onClick={async () => {
-                  const t = parseFloat(savingTarget);
-                  const c = parseFloat(savingCurrent) || 0;
+                  const t = parseFloat(evaluateMathExpression(savingTarget) || savingTarget);
+                  const c = parseFloat(evaluateMathExpression(savingCurrent) || savingCurrent) || 0;
                   if (!savingName.trim() || isNaN(t) || t <= 0) return;
                   await onAddSavingsGoal({
                     name: savingName.trim(),
@@ -791,25 +784,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="font-semibold block mb-1">Target Amount (₹)</label>
-                <input
-                  type="number"
-                  value={editSavingTarget}
-                  onChange={(e) => setEditSavingTarget(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={editSavingTarget}
+                onChange={setEditSavingTarget}
+                label="Target Amount"
+                required
+              />
 
-              <div>
-                <label className="font-semibold block mb-1">Current Saved (₹)</label>
-                <input
-                  type="number"
-                  value={editSavingCurrent}
-                  onChange={(e) => setEditSavingCurrent(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={editSavingCurrent}
+                onChange={setEditSavingCurrent}
+                label="Current Saved"
+              />
 
               <div>
                 <label className="font-semibold block mb-1">Category</label>
@@ -836,8 +822,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
               <button
                 onClick={async () => {
-                  const t = parseFloat(editSavingTarget);
-                  const c = parseFloat(editSavingCurrent) || 0;
+                  const t = parseFloat(evaluateMathExpression(editSavingTarget) || editSavingTarget);
+                  const c = parseFloat(evaluateMathExpression(editSavingCurrent) || editSavingCurrent) || 0;
                   if (!editSavingName.trim() || isNaN(t) || t <= 0) return;
                   await onUpdateSavingsGoal({
                     ...editingSavings,
@@ -866,16 +852,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </h3>
 
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-semibold block mb-1">Monthly Limit (₹)</label>
-                <input
-                  type="number"
-                  value={editBudgetLimit}
-                  onChange={(e) => setEditBudgetLimit(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold text-sm"
-                  autoFocus
-                />
-              </div>
+              <AmountInputField
+                value={editBudgetLimit}
+                onChange={setEditBudgetLimit}
+                label="Monthly Limit"
+                required
+                autoFocus
+              />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -887,7 +870,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
               <button
                 onClick={async () => {
-                  const lim = parseFloat(editBudgetLimit);
+                  const lim = parseFloat(evaluateMathExpression(editBudgetLimit) || editBudgetLimit);
                   if (isNaN(lim) || lim <= 0) return;
                   await onAddBudgetGoal(editingBudgetGoal.category, lim);
                   setEditingBudgetGoal(null);
@@ -909,16 +892,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Schedule Recurring Bill
             </h3>
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-semibold block mb-1">Amount (₹)</label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={recAmount}
-                  onChange={(e) => setRecAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={recAmount}
+                onChange={setRecAmount}
+                label="Amount"
+                required
+              />
 
               <div>
                 <label className="font-semibold block mb-1">Description / Bill Name</label>
@@ -1040,7 +1019,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
               <button
                 onClick={async () => {
-                  const amt = parseFloat(recAmount);
+                  const amt = parseFloat(evaluateMathExpression(recAmount) || recAmount);
                   if (isNaN(amt) || amt <= 0 || !recNotes.trim()) return;
                   const nextDueMs = recNextDueDate ? new Date(recNextDueDate).getTime() : Date.now() + 30 * 24 * 60 * 60 * 1000;
                   await onAddRecurring({
@@ -1075,15 +1054,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Edit Recurring Schedule
             </h3>
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-semibold block mb-1">Amount (₹)</label>
-                <input
-                  type="number"
-                  value={editRecAmount}
-                  onChange={(e) => setEditRecAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard font-semibold"
-                />
-              </div>
+              <AmountInputField
+                value={editRecAmount}
+                onChange={setEditRecAmount}
+                label="Amount"
+                required
+              />
 
               <div>
                 <label className="font-semibold block mb-1">Description / Bill Name</label>
@@ -1131,7 +1107,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
               <button
                 onClick={async () => {
-                  const amt = parseFloat(editRecAmount);
+                  const amt = parseFloat(evaluateMathExpression(editRecAmount) || editRecAmount);
                   if (isNaN(amt) || amt <= 0) return;
                   const nextDueMs = editRecNextDue ? new Date(editRecNextDue).getTime() : editingRecurring.next_due_date;
                   await onUpdateRecurring({
