@@ -232,7 +232,7 @@ export function useLedgerlyData() {
     txData: Omit<Transaction, 'id'>,
     splitsData?: Omit<TransactionSplit, 'id' | 'transaction_id'>[]
   ) => {
-    const id = Date.now();
+    const id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
     const newTx = { ...txData, id };
     
     // Optimistic update
@@ -312,7 +312,7 @@ export function useLedgerlyData() {
   ) => {
     const formatted = newSplits.map((s, idx) => ({
       ...s,
-      id: Date.now() + idx,
+      id: Date.now() * 1000 + Math.floor(Math.random() * 1000) + idx,
       transaction_id: transactionId,
     }));
     setSplits((prev) => [...prev, ...(formatted as TransactionSplit[])]);
@@ -326,7 +326,7 @@ export function useLedgerlyData() {
 
   // 2. Family Members
   const addFamilyMember = async (name: string, relationship: string) => {
-    const newMember: FamilyMember = { id: Date.now(), name, relationship };
+    const newMember: FamilyMember = { id: Date.now() * 1000 + Math.floor(Math.random() * 1000), name, relationship };
     setFamilyMembers((prev) => [...prev, newMember]);
     const { error } = await supabase.from('family_members').insert([newMember]);
     if (error) {
@@ -358,7 +358,7 @@ export function useLedgerlyData() {
 
   // 3. Credit Cards
   const addCreditCard = async (card: Omit<CreditCard, 'id'>) => {
-    const newCard: CreditCard = { ...card, id: Date.now() };
+    const newCard: CreditCard = { ...card, id: Date.now() * 1000 + Math.floor(Math.random() * 1000) };
     setCreditCards((prev) => [...prev, newCard]);
     const { error } = await supabase.from('credit_cards').insert([newCard]);
     if (error) {
@@ -390,7 +390,7 @@ export function useLedgerlyData() {
 
   // 4. Custom Wallets
   const addCustomWallet = async (wallet: Omit<CustomWallet, 'id'>) => {
-    const newWallet: CustomWallet = { ...wallet, id: Date.now() };
+    const newWallet: CustomWallet = { ...wallet, id: Date.now() * 1000 + Math.floor(Math.random() * 1000) };
     setCustomWallets((prev) => [...prev, newWallet]);
     const { error } = await supabase.from('custom_wallets').insert([newWallet]);
     if (error) {
@@ -422,7 +422,7 @@ export function useLedgerlyData() {
 
   // 5. Savings Goals
   const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id'>) => {
-    const newGoal: SavingsGoal = { ...goal, id: Date.now() };
+    const newGoal: SavingsGoal = { ...goal, id: Date.now() * 1000 + Math.floor(Math.random() * 1000) };
     setSavingsGoals((prev) => [...prev, newGoal]);
     const { error } = await supabase.from('savings_goals').insert([newGoal]);
     if (error) {
@@ -433,11 +433,37 @@ export function useLedgerlyData() {
   };
 
   const updateSavingsGoal = async (goal: SavingsGoal) => {
+    const oldGoal = savingsGoals.find((g) => g.id === goal.id);
     setSavingsGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g)));
     const { error } = await supabase.from('savings_goals').update(goal).eq('id', goal.id);
     if (error) {
       fetchData();
       return { success: false, error: error.message };
+    }
+
+    if (oldGoal && oldGoal.current_amount !== goal.current_amount) {
+      const diff = Math.round((goal.current_amount - oldGoal.current_amount) * 100) / 100;
+      if (diff > 0) {
+        await addTransaction({
+          amount: diff,
+          date: Date.now(),
+          notes: `Savings Goal Deposit: ${goal.name}`,
+          type: 'WALLET_TRANSFER',
+          source_wallet: 'EXPENSE_WALLET',
+          destination_wallet: 'SAVINGS_WALLET',
+          category: 'Savings',
+        });
+      } else if (diff < 0) {
+        await addTransaction({
+          amount: Math.abs(diff),
+          date: Date.now(),
+          notes: `Savings Goal Withdrawal: ${goal.name}`,
+          type: 'WALLET_TRANSFER',
+          source_wallet: 'SAVINGS_WALLET',
+          destination_wallet: 'EXPENSE_WALLET',
+          category: 'Savings',
+        });
+      }
     }
     return { success: true };
   };
@@ -476,7 +502,7 @@ export function useLedgerlyData() {
 
   // 7. Recurring Transactions
   const addRecurring = async (rec: Omit<RecurringTransaction, 'id'>) => {
-    const newRec: RecurringTransaction = { ...rec, id: Date.now() };
+    const newRec: RecurringTransaction = { ...rec, id: Date.now() * 1000 + Math.floor(Math.random() * 1000) };
     setRecurringTransactions((prev) => [...prev, newRec]);
     const { error } = await supabase.from('recurring_transactions').insert([newRec]);
     if (error) {
@@ -530,7 +556,7 @@ export function useLedgerlyData() {
 
   // 9. Contacts
   const addContact = async (name: string) => {
-    const newContact: Contact = { id: Date.now(), name };
+    const newContact: Contact = { id: Date.now() * 1000 + Math.floor(Math.random() * 1000), name };
     setContacts((prev) => [...prev, newContact]);
     try {
       await supabase.from('contacts').insert([newContact]);
@@ -603,22 +629,8 @@ export function useLedgerlyData() {
     return await addTransaction(tx);
   };
 
-  // 11. Wipe / Clear All Data (Mobile parity)
+  // 11. Wipe / Clear All Data (Client state only)
   const clearAllData = async () => {
-    try {
-      await supabase.from('transactions').delete().neq('id', 0);
-      await supabase.from('transaction_splits').delete().neq('id', 0);
-      await supabase.from('family_members').delete().neq('id', 0);
-      await supabase.from('credit_cards').delete().neq('id', 0);
-      await supabase.from('custom_wallets').delete().neq('id', 0);
-      await supabase.from('savings_goals').delete().neq('id', 0);
-      await supabase.from('budget_goals').delete().neq('category', '');
-      await supabase.from('recurring_transactions').delete().neq('id', 0);
-      await supabase.from('contacts').delete().neq('id', 0);
-    } catch (e) {
-      console.warn('Error clearing Supabase tables:', e);
-    }
-
     setTransactions([]);
     setSplits([]);
     setFamilyMembers([]);
@@ -628,7 +640,6 @@ export function useLedgerlyData() {
     setBudgetGoals([]);
     setRecurringTransactions([]);
     setContacts([]);
-
     return { success: true };
   };
 

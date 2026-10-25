@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,7 +74,7 @@ fun MainAppContainer(viewModel: LedgerlyViewModel) {
         AuthScreen(viewModel)
         return
     }
-    var currentScreen by remember { mutableStateOf(AppScreen.DASHBOARD) }
+    var currentScreen by rememberSaveable { mutableStateOf(AppScreen.DASHBOARD) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     // Back navigation screen history stack
@@ -627,7 +628,13 @@ fun TransactionRow(
                         }
                     }
                     TransactionType.WALLET_TRANSFER -> "Wallet Transfer"
-                    TransactionType.BORROW_LEND -> if (transaction.direction == TransactionDirection.LENT) "Lent Money" else "Borrowed Money"
+                    TransactionType.BORROW_LEND -> {
+                        if (transaction.notes.contains("Settled", ignoreCase = true) || transaction.notes.contains("Settlement", ignoreCase = true)) {
+                            if (transaction.direction == TransactionDirection.BORROWED) "Settlement Received" else "Settlement Paid"
+                        } else {
+                            if (transaction.direction == TransactionDirection.LENT) "Lent Money" else "Borrowed Money"
+                        }
+                    }
                 }
 
                 val subtitleText = when (transaction.type) {
@@ -650,7 +657,13 @@ fun TransactionRow(
                     TransactionType.WALLET_TRANSFER -> {
                         if (transaction.sourceWallet == WalletType.EXPENSE_WALLET) "Expense to Savings" else "Savings to Expense"
                     }
-                    TransactionType.BORROW_LEND -> if (transaction.direction == TransactionDirection.LENT) "Lent to contact" else "Borrowed from contact"
+                    TransactionType.BORROW_LEND -> {
+                        if (transaction.notes.contains("Settled", ignoreCase = true) || transaction.notes.contains("Settlement", ignoreCase = true)) {
+                            if (transaction.direction == TransactionDirection.BORROWED) "Debt Repayment (+)" else "Debt Repayment (-)"
+                        } else {
+                            if (transaction.direction == TransactionDirection.LENT) "Lent to contact" else "Borrowed from contact"
+                        }
+                    }
                 }
 
                 Text(

@@ -90,8 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem('ledgerly_user_name');
     setUser(null);
     setSession(null);
+    setUserName('User');
   };
 
   const updatePassword = async (newPassword: string) => {

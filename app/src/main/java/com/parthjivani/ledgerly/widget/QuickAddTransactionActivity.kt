@@ -41,6 +41,18 @@ class QuickAddTransactionActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val repositoryInit = LedgerlyRepository.getInstance(applicationContext)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val token = repositoryInit.getSetting("supabase_access_token", "")
+            val refreshToken = repositoryInit.getSetting("supabase_refresh_token", "")
+            if (token.isEmpty() && refreshToken.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(applicationContext, "Please open Ledgerly and log in first.", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            }
+        }
+
         val initialTypeStr = intent.getStringExtra(EXTRA_TRANSACTION_TYPE) ?: "PERSONAL_EXPENSE"
         val initialType = if (initialTypeStr == "PERSONAL_INCOME") {
             TransactionType.PERSONAL_INCOME
@@ -99,7 +111,9 @@ class QuickAddTransactionActivity : ComponentActivity() {
         customWalletId: Long? = null
     ) {
         val repository = LedgerlyRepository.getInstance(applicationContext)
+        val txId = System.currentTimeMillis() * 1000L + kotlin.random.Random.nextLong(1000)
         val tx = Transaction(
+            id = txId,
             amount = amount,
             date = System.currentTimeMillis(),
             notes = notes.trim(),

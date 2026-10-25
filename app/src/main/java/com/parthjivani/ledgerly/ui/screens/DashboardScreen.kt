@@ -605,9 +605,7 @@ fun DashboardScreen(
                                         onClick = {
                                             val amt = amountInput.toDoubleOrNull() ?: 0.0
                                             if (amt > 0) {
-                                                viewModel.updateSavingsGoal(
-                                                    activeSavingsGoal!!.copy(currentAmount = activeSavingsGoal!!.currentAmount + amt)
-                                                )
+                                                viewModel.depositToSavingsGoal(activeSavingsGoal!!, amt)
                                                 activeSavingsGoal = null
                                             }
                                         },
@@ -619,9 +617,7 @@ fun DashboardScreen(
                                         onClick = {
                                             val amt = amountInput.toDoubleOrNull() ?: 0.0
                                             if (amt > 0) {
-                                                viewModel.updateSavingsGoal(
-                                                    activeSavingsGoal!!.copy(currentAmount = maxOf(0.0, activeSavingsGoal!!.currentAmount - amt))
-                                                )
+                                                viewModel.withdrawFromSavingsGoal(activeSavingsGoal!!, amt)
                                                 activeSavingsGoal = null
                                             }
                                         },

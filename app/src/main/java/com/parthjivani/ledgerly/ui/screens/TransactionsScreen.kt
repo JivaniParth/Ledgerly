@@ -96,7 +96,10 @@ fun TransactionsScreen(
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
-    val categoriesList = listOf("Groceries", "Entertainment", "Bills", "Travel", "Medical", "Other")
+    val categoriesFromSettings by viewModel.categories.collectAsState()
+    val categoriesList = remember(categoriesFromSettings, transactions) {
+        (categoriesFromSettings + transactions.map { it.category } + listOf("Other")).distinct().filter { it.isNotBlank() }
+    }
 
     // Filter and Search logic
     val filteredTransactions = transactions.filter { t ->

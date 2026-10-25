@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.parthjivani.ledgerly.ui.components.AmountInputField
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,11 +84,11 @@ fun TransactionEntryScreen(
     val initialDate = editingTransaction?.date ?: System.currentTimeMillis()
 
     // Form inputs state
-    var amountStr by remember(editingTransaction) { mutableStateOf(initialAmount) }
-    var notes by remember(editingTransaction) { mutableStateOf(initialNotes) }
-    var selectedTabIndex by remember(editingTransaction) { mutableStateOf(initialTabIndex) } // [Expense] | [Income] | [Family Transfer] | [Wallet Transfer]
-    var selectedCategory by remember(editingTransaction) { mutableStateOf(initialCategory) }
-    var transactionDate by remember(editingTransaction) { mutableStateOf(initialDate) }
+    var amountStr by rememberSaveable(editingTransaction) { mutableStateOf(initialAmount) }
+    var notes by rememberSaveable(editingTransaction) { mutableStateOf(initialNotes) }
+    var selectedTabIndex by rememberSaveable(editingTransaction) { mutableStateOf(initialTabIndex) } // [Expense] | [Income] | [Family Transfer] | [Wallet Transfer]
+    var selectedCategory by rememberSaveable(editingTransaction) { mutableStateOf(initialCategory) }
+    var transactionDate by rememberSaveable(editingTransaction) { mutableStateOf(initialDate) }
 
     // Wallet selection states
     val initialIncomeDepositWallet = editingTransaction?.let {
@@ -1383,6 +1384,23 @@ fun TransactionEntryScreen(
                             onSubmitTransaction(amount, notes, TransactionType.FAMILY_TRANSFER, familyTargetWallet, null, familyMemberSelected!!.id, familyDirectionChoice, transactionDate, "Other", null, if (familyTargetWallet == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null, null, null, emptyList())
                         }
                         3 -> { // Wallet Transfer
+                            if (walletTransferSource == walletTransferDest &&
+                                (walletTransferSource != WalletType.TEMPORARY_WALLET || selectedCustomWalletSource?.id == selectedCustomWalletDest?.id)) {
+                                familyError = "Source and destination wallets must be different."
+                                return@Button
+                            }
+                            if (walletTransferSource == WalletType.TEMPORARY_WALLET && selectedCustomWalletSource == null) {
+                                familyError = "Please select the source temporary wallet."
+                                return@Button
+                            }
+                            if (walletTransferDest == WalletType.TEMPORARY_WALLET && selectedCustomWalletDest == null) {
+                                familyError = "Please select the destination temporary wallet."
+                                return@Button
+                            }
+                            if (walletTransferDest == WalletType.CREDIT_CARD && selectedRepayCreditCard == null) {
+                                familyError = "Please select the credit card to repay."
+                                return@Button
+                            }
                             val cId = if (walletTransferSource == WalletType.TEMPORARY_WALLET) selectedCustomWalletSource?.id else null
                             val destCId = if (walletTransferDest == WalletType.TEMPORARY_WALLET) selectedCustomWalletDest?.id else null
                             val cardId = if (walletTransferDest == WalletType.CREDIT_CARD) selectedRepayCreditCard?.id else null

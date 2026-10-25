@@ -272,6 +272,29 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             break;
           }
           case 3: { // Wallet Transfer
+            if (
+              transferSourceWallet === transferDestWallet &&
+              (transferSourceWallet !== 'TEMPORARY_WALLET' || transferSourceCustomId === transferDestCustomId)
+            ) {
+              setError('Source and destination wallets must be different.');
+              setSubmitting(false);
+              return;
+            }
+            if (transferSourceWallet === 'TEMPORARY_WALLET' && !transferSourceCustomId) {
+              setError('Please select the source custom wallet.');
+              setSubmitting(false);
+              return;
+            }
+            if (transferDestWallet === 'TEMPORARY_WALLET' && !transferDestCustomId) {
+              setError('Please select the destination custom wallet.');
+              setSubmitting(false);
+              return;
+            }
+            if (transferDestWallet === 'CREDIT_CARD' && !transferRepayCardId) {
+              setError('Please select the credit card to repay.');
+              setSubmitting(false);
+              return;
+            }
             txData = {
               amount: cleanAmount,
               notes,

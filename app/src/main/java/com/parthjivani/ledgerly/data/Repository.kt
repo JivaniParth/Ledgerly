@@ -127,9 +127,28 @@ class LedgerlyRepository(
     suspend fun insertTransaction(transaction: Transaction): Long =
         transactionDao.insertTransaction(transaction)
 
+    suspend fun getPendingDeletedTransactionIds(): Set<Long> {
+        val raw = getSetting("pending_deleted_tx_ids", "")
+        if (raw.isBlank()) return emptySet()
+        return raw.split(",").mapNotNull { it.trim().toLongOrNull() }.toSet()
+    }
+
+    suspend fun addPendingDeletedTransactionId(id: Long) {
+        val current = getPendingDeletedTransactionIds().toMutableSet()
+        current.add(id)
+        insertSetting("pending_deleted_tx_ids", current.joinToString(","))
+    }
+
+    suspend fun removePendingDeletedTransactionId(id: Long) {
+        val current = getPendingDeletedTransactionIds().toMutableSet()
+        current.remove(id)
+        insertSetting("pending_deleted_tx_ids", current.joinToString(","))
+    }
+
     suspend fun deleteTransaction(transaction: Transaction) {
         transactionSplitDao.deleteSplitsByTransactionId(transaction.id)
         transactionDao.deleteTransaction(transaction)
+        addPendingDeletedTransactionId(transaction.id)
     }
 
     fun getTransactionsForFamilyMember(memberId: Long): Flow<List<Transaction>> =
@@ -168,19 +187,22 @@ class LedgerlyRepository(
     suspend fun pushAllPendingToSupabase(): Boolean {
         return try {
             val api = SupabaseClient.api ?: return false
-            val allTxs = allTransactions.first()
-            if (allTxs.isEmpty()) return true
 
-            // Optimize: Push only transactions newer than last sync with 5-minute safety overlap buffer
-            val lastSyncTime = getSetting("last_supabase_sync_timestamp", "0").toLongOrNull() ?: 0L
-            val txsToPush = if (lastSyncTime == 0L) {
-                allTxs
-            } else {
-                allTxs.filter { it.date >= (lastSyncTime - 300_000L) }
+            // 1. Process and execute pending deletions on Supabase
+            val pendingDeletes = getPendingDeletedTransactionIds()
+            for (delId in pendingDeletes) {
+                try {
+                    api.deleteTransaction("eq.$delId")
+                    removePendingDeletedTransactionId(delId)
+                } catch (_: Exception) {
+                    // Retry on next sync cycle
+                }
             }
 
-            if (txsToPush.isNotEmpty()) {
-                txsToPush.map { it.toSupabase() }.chunked(500).forEach { chunk ->
+            // 2. Push all transactions without filtering out historical/backdated transactions
+            val allTxs = allTransactions.first()
+            if (allTxs.isNotEmpty()) {
+                allTxs.map { it.toSupabase() }.chunked(500).forEach { chunk ->
                     api.upsertTransactions(chunk)
                 }
             }
