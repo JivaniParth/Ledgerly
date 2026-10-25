@@ -1,5 +1,8 @@
 # Ledgerly
 
+[![Download Android APK](https://img.shields.io/badge/Download-Android_APK-success?style=for-the-badge&logo=android)](https://github.com/JivaniParth/Ledgerly/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/JivaniParth/Ledgerly?style=for-the-badge)](https://github.com/JivaniParth/Ledgerly/releases/latest)
+
 A feature-rich native Android application for personal finance management. 
 
 ## Key Features
