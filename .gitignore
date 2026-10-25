@@ -15,6 +15,7 @@
 debug.keystore
 *.jks
 *.keystore
+!keystore/debug.keystore
 
 # Build folders
 build/
