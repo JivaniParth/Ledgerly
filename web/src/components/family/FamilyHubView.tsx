@@ -79,24 +79,16 @@ export const FamilyHubView: React.FC<FamilyHubViewProps> = ({
           </div>
         ) : (
           familyMembers.map((member) => {
-            const memberTxs = transactions.filter((t) => t.family_member_id === member.id);
-            const totalGiven = memberTxs
-              .filter(
-                (t) =>
-                  (t.type === 'FAMILY_TRANSFER' || t.type === 'BORROW_LEND') &&
-                  (t.direction === 'GIVEN_TO_THEM' || t.direction === 'LENT')
-              )
+            const memberFamilyTxs = transactions.filter(
+              (t) => t.family_member_id === member.id && t.type === 'FAMILY_TRANSFER'
+            );
+            const totalGiven = memberFamilyTxs
+              .filter((t) => t.direction === 'GIVEN_TO_THEM')
               .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-            const totalReceived = memberTxs
-              .filter(
-                (t) =>
-                  (t.type === 'FAMILY_TRANSFER' || t.type === 'BORROW_LEND') &&
-                  (t.direction === 'RECEIVED_FROM_THEM' || t.direction === 'BORROWED')
-              )
+            const totalReceived = memberFamilyTxs
+              .filter((t) => t.direction === 'RECEIVED_FROM_THEM')
               .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-
-            const netBalance = totalGiven - totalReceived;
 
             return (
               <div
@@ -158,26 +150,6 @@ export const FamilyHubView: React.FC<FamilyHubViewProps> = ({
                       {formatCurrency(totalReceived)}
                     </p>
                   </div>
-                </div>
-
-                {/* Net Standing */}
-                <div className="flex items-center justify-between text-xs py-1">
-                  <span className="text-gray-500 dark:text-darkMuted font-medium">Net Standing:</span>
-                  <span
-                    className={`font-bold ${
-                      netBalance > 0
-                        ? 'text-finance-green'
-                        : netBalance < 0
-                        ? 'text-finance-red'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    {netBalance > 0
-                      ? `They owe ${formatCurrency(netBalance)}`
-                      : netBalance < 0
-                      ? `You owe ${formatCurrency(Math.abs(netBalance))}`
-                      : 'Settled up'}
-                  </span>
                 </div>
 
                 {/* Action Buttons */}

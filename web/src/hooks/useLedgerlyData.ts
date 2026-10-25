@@ -13,6 +13,7 @@ import {
   TransactionSplit,
   LedgerEntity,
   WalletType,
+  TransactionDirection,
 } from '../lib/types';
 import {
   calculateExpenseBalance,
@@ -155,22 +156,28 @@ export function useLedgerlyData() {
   const ledgerEntities = useMemo<LedgerEntity[]>(() => {
     const list: LedgerEntity[] = [];
 
-    // Add Family Members
+    // Add Family Members ONLY if they have borrow/lend transactions or unsettled splits
     for (const fm of familyMembers) {
-      // Direct transactions
-      const memberTxs = transactions.filter((t) => t.family_member_id === fm.id);
+      const borrowLendTxs = transactions.filter(
+        (t) => t.family_member_id === fm.id && t.type === 'BORROW_LEND'
+      );
+      const memberSplits = splits.filter(
+        (s) => s.family_member_id === fm.id && !s.is_settled
+      );
+
+      // Only include family members in the Borrow & Lend Ledger if they have borrow/lend transactions or splits
+      if (borrowLendTxs.length === 0 && memberSplits.length === 0) {
+        continue;
+      }
+
       let balance = 0;
-      for (const t of memberTxs) {
-        if (t.type === 'FAMILY_TRANSFER' || t.type === 'BORROW_LEND') {
-          if (t.direction === 'GIVEN_TO_THEM' || t.direction === 'LENT') {
-            balance += t.amount; // They owe you
-          } else if (t.direction === 'RECEIVED_FROM_THEM' || t.direction === 'BORROWED') {
-            balance -= t.amount; // You owe them
-          }
+      for (const t of borrowLendTxs) {
+        if (t.direction === 'GIVEN_TO_THEM' || t.direction === 'LENT') {
+          balance += t.amount; // They owe you
+        } else if (t.direction === 'RECEIVED_FROM_THEM' || t.direction === 'BORROWED') {
+          balance -= t.amount; // You owe them
         }
       }
-      // Add unsettled splits
-      const memberSplits = splits.filter((s) => s.family_member_id === fm.id && !s.is_settled);
       for (const s of memberSplits) {
         balance += s.amount;
       }
@@ -187,15 +194,15 @@ export function useLedgerlyData() {
 
     // Add Contacts
     for (const c of contacts) {
-      const contactTxs = transactions.filter((t) => t.contact_id === c.id);
+      const contactTxs = transactions.filter(
+        (t) => t.contact_id === c.id && t.type === 'BORROW_LEND'
+      );
       let balance = 0;
       for (const t of contactTxs) {
-        if (t.type === 'BORROW_LEND') {
-          if (t.direction === 'GIVEN_TO_THEM' || t.direction === 'LENT') {
-            balance += t.amount;
-          } else if (t.direction === 'RECEIVED_FROM_THEM' || t.direction === 'BORROWED') {
-            balance -= t.amount;
-          }
+        if (t.direction === 'GIVEN_TO_THEM' || t.direction === 'LENT') {
+          balance += t.amount;
+        } else if (t.direction === 'RECEIVED_FROM_THEM' || t.direction === 'BORROWED') {
+          balance -= t.amount;
         }
       }
       // Add unsettled splits
@@ -213,7 +220,11 @@ export function useLedgerlyData() {
       });
     }
 
-    return list.sort((a, b) => a.name.localeCompare(b.name));
+    return list.sort((a, b) => {
+      const diff = Math.abs(b.balance) - Math.abs(a.balance);
+      if (diff !== 0) return diff;
+      return a.name.localeCompare(b.name);
+    });
   }, [familyMembers, contacts, transactions, splits]);
 
   // ── CRUD OPERATIONS ───────────────────────────────────────────────
@@ -561,15 +572,15 @@ export function useLedgerlyData() {
     if (amt <= 0) return { success: true };
 
     // Record a reconciling transaction:
-    // If they owed you (balance > 0) -> RECEIVED_FROM_THEM
-    // If you owed them (balance < 0) -> GIVEN_TO_THEM
-    const direction = entity.balance > 0 ? 'RECEIVED_FROM_THEM' : 'GIVEN_TO_THEM';
+    // If they owed you (balance > 0) -> we received repayment (BORROWED)
+    // If you owed them (balance < 0) -> we gave repayment (LENT)
+    const direction: TransactionDirection = entity.balance > 0 ? 'BORROWED' : 'LENT';
 
     const tx: Omit<Transaction, 'id'> = {
       amount: amt,
       date: Date.now(),
       notes: `Settled debt with ${entity.name}`,
-      type: entity.isFamilyMember ? 'FAMILY_TRANSFER' : 'BORROW_LEND',
+      type: 'BORROW_LEND',
       source_wallet: walletToReceive,
       direction,
       category: 'Other',
