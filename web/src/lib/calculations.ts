@@ -1,4 +1,4 @@
-import { Transaction, TransactionSplit } from './types';
+import { Transaction } from './types';
 
 export function calculateExpenseBalance(transactions: Transaction[]): number {
   let balance = 0.0;
@@ -200,13 +200,11 @@ export function calculateStreak(transactions: Transaction[]): number {
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayKey = formatKey(yesterday);
 
-  let startKey = '';
   let checkDate = new Date(now);
 
   if (loggedDays.has(todayKey)) {
-    startKey = todayKey;
+    // start from today
   } else if (loggedDays.has(yesterdayKey)) {
-    startKey = yesterdayKey;
     checkDate = yesterday;
   } else {
     return 0;

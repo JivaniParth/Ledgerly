@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calculator } from 'lucide-react';
-import { convertAmountToWords, evaluateMathExpression, formatIndianCurrency } from '../../lib/amountUtils';
+import { convertAmountToWords, evaluateMathExpression } from '../../lib/amountUtils';
 import { CalculatorModal } from './CalculatorModal';
 
 interface AmountInputFieldProps {

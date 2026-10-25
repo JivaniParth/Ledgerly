@@ -7,9 +7,6 @@ import {
   ArrowRightLeft,
   Edit2,
   Trash2,
-  DollarSign,
-  ChevronRight,
-  X,
   History,
 } from 'lucide-react';
 import {
@@ -61,7 +58,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   transactions,
   creditCards,
   customWallets,
-  contacts,
+  contacts: _contacts,
   ledgerEntities,
   onAddCreditCard,
   onUpdateCreditCard,

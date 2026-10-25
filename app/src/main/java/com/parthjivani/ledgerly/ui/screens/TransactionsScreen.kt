@@ -654,7 +654,7 @@ fun TransactionsScreen(
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(Icons.Default.CallSplit, contentDescription = "Split", modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.CallSplit, contentDescription = "Split", modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Split", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }

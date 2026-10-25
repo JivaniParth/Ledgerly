@@ -2,9 +2,6 @@ import React, { useMemo } from 'react';
 import {
   CreditCard as CardIcon,
   BarChart3,
-  Calendar,
-  AlertCircle,
-  TrendingDown,
   PieChart as PieIcon,
 } from 'lucide-react';
 import {

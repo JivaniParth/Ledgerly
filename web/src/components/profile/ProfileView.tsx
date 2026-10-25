@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Lock, Mail, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
+import { Lock, Mail, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const ProfileView: React.FC = () => {

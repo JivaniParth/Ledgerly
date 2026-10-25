@@ -3,14 +3,11 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
-  CreditCard as CardIcon,
   PiggyBank,
   ArrowUpRight,
   ArrowDownLeft,
   ChevronRight,
   Flame,
-  PlusCircle,
-  MinusCircle,
   Target,
 } from 'lucide-react';
 import {
@@ -48,7 +45,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   creditCards,
   monthlyProjection,
   streak,
-  onOpenTransactionModal,
+  onOpenTransactionModal: _onOpenTransactionModal,
   onNavigateToTransactions,
   onNavigateToAnalytics,
   onUpdateSavingsGoal,

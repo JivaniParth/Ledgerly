@@ -1,24 +1,20 @@
 import React, { useState } from 'react';
 import {
   UploadCloud,
-  FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
   Table as TableIcon,
   ChevronRight,
   ArrowLeft,
   X,
-  CreditCard as CardIcon,
 } from 'lucide-react';
 import { parseExcelWorkbook, ExtractedTable, ExtractedRow } from '../../lib/excelParser';
 import {
   CreditCard,
   CustomWallet,
   Transaction,
-  WalletType,
   TransactionType,
 } from '../../lib/types';
-import { formatCurrency } from '../../lib/calculations';
 
 interface ExcelImportWizardProps {
   creditCards: CreditCard[];
@@ -31,9 +27,9 @@ interface ExcelImportWizardProps {
 
 export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   creditCards,
-  customWallets,
+  customWallets: _customWallets,
   expenseCategories,
-  incomeCategories,
+  incomeCategories: _incomeCategories,
   onBatchImport,
   onFinish,
 }) => {

@@ -1,14 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Filter,
   Download,
   Trash2,
   Edit2,
   Divide,
-  ArrowUpRight,
-  ArrowDownLeft,
-  ChevronDown,
   X,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -19,8 +15,6 @@ import {
   CustomWallet,
   Contact,
   TransactionSplit,
-  WalletType,
-  TransactionType,
 } from '../../lib/types';
 import { formatCurrency, formatIndianDate, formatIndianTime, formatIndianDateTime } from '../../lib/calculations';
 

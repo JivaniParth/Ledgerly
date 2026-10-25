@@ -8,16 +8,11 @@ import {
   Cloud,
   Plus,
   Trash2,
-  Edit2,
   RefreshCw,
   FileSpreadsheet,
   AlertTriangle,
   LogOut,
   ChevronRight,
-  Calendar,
-  Wallet,
-  TrendingDown,
-  TrendingUp,
 } from 'lucide-react';
 import {
   BudgetGoal,
@@ -26,7 +21,7 @@ import {
   WalletType,
   TransactionType,
 } from '../../lib/types';
-import { formatCurrency, formatIndianDate, formatIndianDateTime } from '../../lib/calculations';
+import { formatCurrency, formatIndianDate } from '../../lib/calculations';
 import { AmountInputField } from '../common/AmountInputField';
 import { evaluateMathExpression } from '../../lib/amountUtils';
 import { useTheme } from '../../context/ThemeContext';

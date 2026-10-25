@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard as CardIcon, ArrowRightLeft, Users, UserPlus, Divide } from 'lucide-react';
+import { X, Divide } from 'lucide-react';
 import {
   Transaction,
-  TransactionType,
   WalletType,
   TransactionDirection,
   FamilyMember,
@@ -11,7 +10,6 @@ import {
   Contact,
   TransactionSplit,
 } from '../../lib/types';
-import { formatCurrency } from '../../lib/calculations';
 import { AmountInputField } from '../common/AmountInputField';
 import { evaluateMathExpression } from '../../lib/amountUtils';
 

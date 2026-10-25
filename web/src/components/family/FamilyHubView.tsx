@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Plus, Edit2, Trash2, ArrowRightLeft, History } from 'lucide-react';
+import { Plus, Edit2, Trash2, ArrowRightLeft, History } from 'lucide-react';
 import { FamilyMember, Transaction } from '../../lib/types';
 import { formatCurrency } from '../../lib/calculations';
 

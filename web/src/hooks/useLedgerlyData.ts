@@ -18,8 +18,6 @@ import {
 import {
   calculateExpenseBalance,
   calculateSavingsBalance,
-  calculateCustomWalletBalance,
-  calculateCreditCardSpend,
   calculate90DayOutflows,
   calculateStreak,
 } from '../lib/calculations';
@@ -107,7 +105,7 @@ export function useLedgerlyData() {
       try {
         const { data: conData } = await supabase.from('contacts').select('*');
         if (conData) contactsList = conData;
-      } catch (e) {
+      } catch {
         // Table might not exist yet in Postgres
       }
 
@@ -116,7 +114,7 @@ export function useLedgerlyData() {
       try {
         const { data: splData } = await supabase.from('transaction_splits').select('*');
         if (splData) splitsList = splData;
-      } catch (e) {
+      } catch {
         // Table might not exist yet in Postgres
       }
 

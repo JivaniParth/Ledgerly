@@ -4,13 +4,10 @@ import {
   X,
   Delete,
   Check,
-  RotateCcw,
-  Equal,
 } from 'lucide-react';
 import {
   evaluateMathExpression,
   convertAmountToWords,
-  formatIndianCurrency,
 } from '../../lib/amountUtils';
 import { formatCurrency } from '../../lib/calculations';
 
