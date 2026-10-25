@@ -1,15 +1,19 @@
 package com.parthjivani.ledgerly.data
 
+import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -252,4 +256,46 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customWalletDao(): CustomWalletDao
     abstract fun contactDao(): ContactDao
     abstract fun transactionSplitDao(): TransactionSplitDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `custom_wallets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `color` TEXT NOT NULL)")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `customWalletId` INTEGER")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `destinationCustomWalletId` INTEGER")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `credit_cards` ADD COLUMN `color` TEXT NOT NULL DEFAULT '#E91E63'")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `contacts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `transaction_splits` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `transactionId` INTEGER NOT NULL, `amount` REAL NOT NULL, `contactId` INTEGER, `familyMemberId` INTEGER, `isSettled` INTEGER NOT NULL)")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `contactId` INTEGER")
+            }
+        }
+
+        fun getDatabase(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "ledgerly_database"
+                )
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .fallbackToDestructiveMigration(dropAllTables = true)
+                .build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
 }

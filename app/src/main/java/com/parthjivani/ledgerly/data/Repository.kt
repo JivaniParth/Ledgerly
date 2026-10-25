@@ -1,6 +1,8 @@
 package com.parthjivani.ledgerly.data
 
+import android.content.Context
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class LedgerlyRepository(
@@ -144,7 +146,47 @@ class LedgerlyRepository(
         customWalletDao.clearAllCustomWallets()
         contactDao.clearAllContacts()
     }
+
+    suspend fun pushAllPendingToSupabase(): Boolean {
+        return try {
+            val api = SupabaseClient.api ?: return false
+            val allTxs = allTransactions.first()
+            if (allTxs.isEmpty()) return true
+            allTxs.map { it.toSupabase() }.chunked(500).forEach { chunk ->
+                api.upsertTransactions(chunk)
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     companion object {
+        @Volatile
+        private var INSTANCE: LedgerlyRepository? = null
+        var appContext: Context? = null
+
+        fun getInstance(context: Context): LedgerlyRepository {
+            appContext = context.applicationContext
+            return INSTANCE ?: synchronized(this) {
+                val db = AppDatabase.getDatabase(context)
+                val instance = LedgerlyRepository(
+                    db.familyMemberDao(),
+                    db.transactionDao(),
+                    db.appSettingDao(),
+                    db.budgetGoalDao(),
+                    db.savingsGoalDao(),
+                    db.recurringTransactionDao(),
+                    db.creditCardDao(),
+                    db.customWalletDao(),
+                    db.contactDao(),
+                    db.transactionSplitDao()
+                )
+                INSTANCE = instance
+                instance
+            }
+        }
         fun calculateExpenseBalance(transactions: List<Transaction>): Double {
             var balance = 0.0
             for (t in transactions) {

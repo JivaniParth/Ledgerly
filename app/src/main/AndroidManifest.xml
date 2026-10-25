@@ -36,6 +36,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Quick Add Floating Dialog Activity -->
+        <activity
+            android:name=".widget.QuickAddTransactionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Ledgerly.Dialog"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Home Screen App Widget -->
+        <receiver
+            android:name=".widget.LedgerlyWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.parthjivani.ledgerly.ACTION_REFRESH_WIDGET" />
+                <action android:name="com.parthjivani.ledgerly.ACTION_UPDATE_WIDGET_DATA" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ledgerly_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

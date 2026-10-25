@@ -660,12 +660,18 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             }
             
             _lastSavedTransactionId.value = id
+            LedgerlyRepository.appContext?.let {
+                com.parthjivani.ledgerly.widget.LedgerlyWidgetProvider.sendUpdateBroadcast(it)
+            }
             try {
                 SupabaseClient.api?.let { api ->
                     api.upsertTransactions(listOf(tx.copy(id = id).toSupabase()))
+                } ?: run {
+                    LedgerlyRepository.appContext?.let { com.parthjivani.ledgerly.data.SyncWorker.enqueue(it) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                LedgerlyRepository.appContext?.let { com.parthjivani.ledgerly.data.SyncWorker.enqueue(it) }
             }
         }
     }
@@ -673,6 +679,9 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteTransaction(transaction)
+            LedgerlyRepository.appContext?.let {
+                com.parthjivani.ledgerly.widget.LedgerlyWidgetProvider.sendUpdateBroadcast(it)
+            }
             try {
                 SupabaseClient.api?.let { api ->
                     api.deleteTransaction("eq.${transaction.id}")
@@ -687,6 +696,9 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val splitsWithTxId = splits.map { it.copy(transactionId = transactionId) }
             repository.insertTransactionSplits(splitsWithTxId)
+            LedgerlyRepository.appContext?.let {
+                com.parthjivani.ledgerly.widget.LedgerlyWidgetProvider.sendUpdateBroadcast(it)
+            }
         }
     }
 
@@ -726,12 +738,18 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             )
             val savedId = repository.insertTransaction(tx)
             _lastSavedTransactionId.value = savedId
+            LedgerlyRepository.appContext?.let {
+                com.parthjivani.ledgerly.widget.LedgerlyWidgetProvider.sendUpdateBroadcast(it)
+            }
             try {
                 SupabaseClient.api?.let { api ->
                     api.upsertTransactions(listOf(tx.toSupabase()))
+                } ?: run {
+                    LedgerlyRepository.appContext?.let { com.parthjivani.ledgerly.data.SyncWorker.enqueue(it) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                LedgerlyRepository.appContext?.let { com.parthjivani.ledgerly.data.SyncWorker.enqueue(it) }
             }
         }
     }

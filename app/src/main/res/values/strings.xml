@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Ledgerly</string>
+    <string name="widget_description">Quick view wallet balances and log transactions instantly without opening the app.</string>
 </resources>
