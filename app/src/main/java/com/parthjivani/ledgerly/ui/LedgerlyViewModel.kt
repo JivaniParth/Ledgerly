@@ -1497,6 +1497,31 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         }
     }
 
+    fun sendPasswordReset(email: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val authApi = SupabaseClient.authApi
+                if (authApi == null) {
+                    withContext(Dispatchers.Main) { onResult(false, "Supabase URL or Key not configured.") }
+                    return@launch
+                }
+                val req = SupabaseRecoverRequest(email.trim())
+                val response = authApi.recoverPassword(req)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        onResult(true, "Password reset link sent to your email!")
+                    } else {
+                        onResult(false, "Failed to send reset link (HTTP ${response.code()})")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onResult(false, e.localizedMessage ?: "Failed to send password reset email.")
+                }
+            }
+        }
+    }
+
     fun updateUserName(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertSetting("user_profile_name", name)

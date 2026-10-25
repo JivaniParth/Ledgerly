@@ -43,6 +43,11 @@ data class SupabaseUser(
 )
 
 @JsonClass(generateAdapter = true)
+data class SupabaseRecoverRequest(
+    @param:Json(name = "email") val email: String
+)
+
+@JsonClass(generateAdapter = true)
 data class SupabaseUpdateUserRequest(
     @param:Json(name = "password") val password: String
 )
@@ -553,4 +558,7 @@ interface SupabaseAuthApi {
 
     @PUT("auth/v1/user")
     suspend fun updateUser(@Body request: SupabaseUpdateUserRequest): SupabaseUser
+
+    @POST("auth/v1/recover")
+    suspend fun recoverPassword(@Body request: SupabaseRecoverRequest): retrofit2.Response<Unit>
 }

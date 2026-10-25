@@ -35,19 +35,33 @@ class LedgerlyWidgetProvider : AppWidgetProvider() {
             val thisWidget = ComponentName(context, LedgerlyWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
             onUpdate(context, appWidgetManager, appWidgetIds)
+        } else if (intent.action == ACTION_TOGGLE_PRIVACY) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val currentMask = prefs.getBoolean(KEY_PRIVACY_MASKED, false)
+            prefs.edit().putBoolean(KEY_PRIVACY_MASKED, !currentMask).apply()
+
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val thisWidget = ComponentName(context, LedgerlyWidgetProvider::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
+            onUpdate(context, appWidgetManager, appWidgetIds)
         }
     }
 
     companion object {
         const val ACTION_REFRESH_WIDGET = "com.parthjivani.ledgerly.ACTION_REFRESH_WIDGET"
         const val ACTION_UPDATE_WIDGET_DATA = "com.parthjivani.ledgerly.ACTION_UPDATE_WIDGET_DATA"
+        const val ACTION_TOGGLE_PRIVACY = "com.parthjivani.ledgerly.ACTION_TOGGLE_PRIVACY"
+        private const val PREFS_NAME = "ledgerly_widget_prefs"
+        private const val KEY_PRIVACY_MASKED = "privacy_masked"
+
+        private val widgetScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
         fun updateAppWidget(
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int
         ) {
-            CoroutineScope(Dispatchers.IO).launch {
+            widgetScope.launch {
                 val repository = LedgerlyRepository.getInstance(context)
                 val allTxs = try {
                     repository.allTransactions.first()
@@ -58,9 +72,28 @@ class LedgerlyWidgetProvider : AppWidgetProvider() {
                 val expBal = LedgerlyRepository.calculateExpenseBalance(allTxs)
                 val savBal = LedgerlyRepository.calculateSavingsBalance(allTxs)
 
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val isMasked = prefs.getBoolean(KEY_PRIVACY_MASKED, false)
+
                 val views = RemoteViews(context.packageName, R.layout.widget_ledgerly)
-                views.setTextViewText(R.id.widget_tv_expense_balance, formatCurrency(expBal))
-                views.setTextViewText(R.id.widget_tv_savings_balance, formatCurrency(savBal))
+                if (isMasked) {
+                    views.setTextViewText(R.id.widget_tv_expense_balance, "₹ ••••••")
+                    views.setTextViewText(R.id.widget_tv_savings_balance, "₹ ••••••")
+                } else {
+                    views.setTextViewText(R.id.widget_tv_expense_balance, formatCurrency(expBal))
+                    views.setTextViewText(R.id.widget_tv_savings_balance, formatCurrency(savBal))
+                }
+
+                // Balance cards click -> Toggle privacy mask
+                val privacyIntent = Intent(context, LedgerlyWidgetProvider::class.java).apply {
+                    action = ACTION_TOGGLE_PRIVACY
+                }
+                val privacyPending = PendingIntent.getBroadcast(
+                    context, 4, privacyIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widget_expense_card, privacyPending)
+                views.setOnClickPendingIntent(R.id.widget_savings_card, privacyPending)
 
                 // Header click -> open Main App
                 val mainIntent = Intent(context, MainActivity::class.java)

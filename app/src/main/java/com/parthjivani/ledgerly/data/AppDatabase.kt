@@ -194,6 +194,12 @@ interface TransactionSplitDao {
     
     @Query("UPDATE transaction_splits SET isSettled = 1 WHERE familyMemberId = :familyMemberId")
     suspend fun settleSplitsForFamilyMember(familyMemberId: Long)
+
+    @Query("DELETE FROM transaction_splits WHERE transactionId = :transactionId")
+    suspend fun deleteSplitsByTransactionId(transactionId: Long)
+
+    @Query("DELETE FROM transaction_splits")
+    suspend fun clearAllSplits()
 }
 
 class Converters {

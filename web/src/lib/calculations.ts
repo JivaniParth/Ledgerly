@@ -35,7 +35,7 @@ export function calculateExpenseBalance(transactions: Transaction[]): number {
         break;
     }
   }
-  return balance;
+  return Math.round(balance * 100) / 100;
 }
 
 export function calculateSavingsBalance(transactions: Transaction[]): number {
@@ -73,7 +73,7 @@ export function calculateSavingsBalance(transactions: Transaction[]): number {
         break;
     }
   }
-  return balance;
+  return Math.round(balance * 100) / 100;
 }
 
 export function calculateCustomWalletBalance(walletId: number, transactions: Transaction[]): number {
@@ -101,7 +101,7 @@ export function calculateCustomWalletBalance(walletId: number, transactions: Tra
       balance += amt;
     }
   }
-  return balance;
+  return Math.round(balance * 100) / 100;
 }
 
 /**

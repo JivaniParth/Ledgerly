@@ -457,8 +457,21 @@ object ExcelParser {
     }
 
     fun parseAmount(raw: String): Double? {
-        val clean = raw.replace("₹", "").replace(",", "").replace("-", "").trim()
-        return clean.toDoubleOrNull()
+        val clean = raw.replace("₹", "")
+            .replace("$", "")
+            .replace("€", "")
+            .replace("£", "")
+            .replace(",", "")
+            .replace("(", "-")
+            .replace(")", "")
+            .trim()
+        val parsed = clean.toDoubleOrNull() ?: return null
+        return Math.abs(parsed)
+    }
+
+    fun isDebitAmount(raw: String): Boolean {
+        val trimmed = raw.trim()
+        return trimmed.startsWith("-") || (trimmed.startsWith("(") && trimmed.endsWith(")"))
     }
 
     fun parseExcelDate(raw: String, sheetName: String): Long {
@@ -471,19 +484,23 @@ object ExcelParser {
             return ms
         }
         
+        val months = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+        val monthIdx = months.indexOfFirst { sheetName.lowercase().contains(it) }
+        val sheetYear = Regex("""\b(20\d\d)\b""").find(sheetName)?.groupValues?.get(1)?.toIntOrNull()
+
         val digitsVal = cleanVal.toIntOrNull()
         if (digitsVal != null && digitsVal in 1..31) {
-            val months = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
-            val monthIdx = months.indexOfFirst { sheetName.lowercase().startsWith(it) }
             if (monthIdx != -1) {
                 val cal = Calendar.getInstance()
                 val currentYear = cal.get(Calendar.YEAR)
                 val currentMonth = cal.get(Calendar.MONTH)
-                var year = currentYear
-                if (monthIdx in 0..2 && currentMonth >= 3) {
-                    year += 1
-                } else if (monthIdx in 3..11 && currentMonth < 3) {
-                    year -= 1
+                var year = sheetYear ?: currentYear
+                if (sheetYear == null) {
+                    if (monthIdx in 0..2 && currentMonth >= 3) {
+                        year += 1
+                    } else if (monthIdx in 3..11 && currentMonth < 3) {
+                        year -= 1
+                    }
                 }
                 cal.set(Calendar.YEAR, year)
                 cal.set(Calendar.MONTH, monthIdx)
@@ -497,34 +514,50 @@ object ExcelParser {
         }
         
         val formats = listOf(
-            "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "yyyy-MM-dd",
-            "dd/MM/yy", "dd-MM-yy", "d/M/yyyy", "d-M-yyyy",
-            "d MMM yyyy", "dd MMM yyyy", "dd-MMM-yyyy", "d-MMM-yyyy",
+            "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd",
+            "dd/MM/yyyy", "dd-MM-yyyy", "d/M/yyyy", "d-M-yyyy",
+            "MM/dd/yyyy", "M/d/yyyy", "MM-dd-yyyy", "M-d-yyyy",
+            "yyyy/MM/dd", "yyyy.MM.dd",
+            "dd/MM/yy", "dd-MM-yy", "MM/dd/yy", "MM-dd-yy",
+            "dd MMM yyyy", "dd-MMM-yyyy", "d MMM yyyy", "d-MMM-yyyy",
+            "MMM dd, yyyy", "MMM d, yyyy", "MMMM dd, yyyy",
             "dd.MM.yyyy", "dd.MM.yy"
         )
         for (fmt in formats) {
             try {
-                val sdf = SimpleDateFormat(fmt, Locale.getDefault())
+                val sdf = SimpleDateFormat(fmt, Locale.US)
                 sdf.isLenient = false
                 val date = sdf.parse(cleanVal)
                 if (date != null) return date.time
             } catch (_: Exception) {}
         }
         
-        val months = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
-        val monthIdx = months.indexOfFirst { sheetName.lowercase().startsWith(it) }
         if (monthIdx != -1) {
             val cal = Calendar.getInstance()
             val currentYear = cal.get(Calendar.YEAR)
             val currentMonth = cal.get(Calendar.MONTH)
-            var year = currentYear
-            if (monthIdx in 0..2 && currentMonth >= 3) {
-                year += 1
-            } else if (monthIdx in 3..11 && currentMonth < 3) {
-                year -= 1
+            var year = sheetYear ?: currentYear
+            if (sheetYear == null) {
+                if (monthIdx in 0..2 && currentMonth >= 3) {
+                    year += 1
+                } else if (monthIdx in 3..11 && currentMonth < 3) {
+                    year -= 1
+                }
             }
             cal.set(Calendar.YEAR, year)
             cal.set(Calendar.MONTH, monthIdx)
+            cal.set(Calendar.DAY_OF_MONTH, 1)
+            cal.set(Calendar.HOUR_OF_DAY, 12)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            return cal.timeInMillis
+        }
+
+        if (sheetYear != null) {
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.YEAR, sheetYear)
+            cal.set(Calendar.MONTH, 0)
             cal.set(Calendar.DAY_OF_MONTH, 1)
             cal.set(Calendar.HOUR_OF_DAY, 12)
             cal.set(Calendar.MINUTE, 0)

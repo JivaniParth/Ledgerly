@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Divide } from 'lucide-react';
+import { X, Divide, AlertCircle } from 'lucide-react';
 import {
   Transaction,
   WalletType,
@@ -11,7 +11,7 @@ import {
   TransactionSplit,
 } from '../../lib/types';
 import { AmountInputField } from '../common/AmountInputField';
-import { evaluateMathExpression } from '../../lib/amountUtils';
+import { evaluateMathExpression, formatIndianCurrency } from '../../lib/amountUtils';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -28,6 +28,7 @@ interface TransactionModalProps {
   contacts: Contact[];
   expenseCategories: string[];
   incomeCategories: string[];
+  expenseBalance?: number;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -42,6 +43,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   contacts,
   expenseCategories,
   incomeCategories,
+  expenseBalance = 0,
 }) => {
   // Tabs: 0: Expense, 1: Income, 2: Family Transfer, 3: Wallet Transfer, 4: Borrow/Lend
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -163,13 +165,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanAmount = (amount || '').toString().replace(/,/g, '').trim();
-    const evaluated = evaluateMathExpression(cleanAmount) || cleanAmount;
+    const rawAmount = (amount || '').toString().replace(/,/g, '').trim();
+    const evaluated = evaluateMathExpression(rawAmount) || rawAmount;
     const numAmount = parseFloat(evaluated);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      setError('Please enter a valid amount greater than 0.');
+    if (isNaN(numAmount) || numAmount <= 0 || !isFinite(numAmount)) {
+      setError('Please enter a valid positive number.');
       return;
     }
+    const cleanAmount = Math.round(numAmount * 100) / 100;
 
     setSubmitting(true);
     setError(null);
@@ -181,7 +184,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         // Update existing transaction
         const updated: Transaction = {
           ...editingTransaction,
-          amount: numAmount,
+          amount: cleanAmount,
           notes,
           date: timestamp,
           category: activeTab === 0 ? category : activeTab === 1 ? category : 'Other',
@@ -200,7 +203,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         switch (activeTab) {
           case 0: { // Personal Expense
             txData = {
-              amount: numAmount,
+              amount: cleanAmount,
               notes,
               date: timestamp,
               type: 'PERSONAL_EXPENSE',
@@ -217,7 +220,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               );
               if (activeEntityKeys.length > 0) {
                 const totalPeople = activeEntityKeys.length + 1; // Participants + User
-                const equalShare = numAmount / totalPeople;
+                const equalShare = cleanAmount / totalPeople;
 
                 splitsData = activeEntityKeys.map((key) => {
                   const isContact = key.startsWith('C_');
@@ -227,7 +230,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     : parseFloat(customSplitAmounts[key] || '0') || equalShare;
 
                   return {
-                    amount: splitAmt,
+                    amount: Math.round(splitAmt * 100) / 100,
                     contact_id: isContact ? entityId : null,
                     family_member_id: !isContact ? entityId : null,
                     is_settled: false,
@@ -239,7 +242,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           }
           case 1: { // Personal Income
             txData = {
-              amount: numAmount,
+              amount: cleanAmount,
               notes,
               date: timestamp,
               type: 'PERSONAL_INCOME',
@@ -256,7 +259,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               return;
             }
             txData = {
-              amount: numAmount,
+              amount: cleanAmount,
               notes,
               date: timestamp,
               type: 'FAMILY_TRANSFER',
@@ -270,7 +273,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           }
           case 3: { // Wallet Transfer
             txData = {
-              amount: numAmount,
+              amount: cleanAmount,
               notes,
               date: timestamp,
               type: 'WALLET_TRANSFER',
@@ -296,7 +299,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             const personId = parseInt(borrowLendTargetKey.slice(2), 10);
 
             txData = {
-              amount: numAmount,
+              amount: cleanAmount,
               notes,
               date: timestamp,
               type: 'BORROW_LEND',
@@ -398,6 +401,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               />
             </div>
           </div>
+
+          {activeTab === 0 && expenseWalletType === 'EXPENSE_WALLET' && (parseFloat(amount) || 0) > expenseBalance && (
+            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
+              <AlertCircle size={15} className="shrink-0 text-amber-500" />
+              <span>
+                Overdraft Warning: Amount exceeds available Expense balance (₹{formatIndianCurrency(String(expenseBalance))}). Balance will go negative.
+              </span>
+            </div>
+          )}
 
           {/* TAB 0: PERSONAL EXPENSE */}
           {activeTab === 0 && (

@@ -22,6 +22,10 @@ fun AuthScreen(viewModel: LedgerlyViewModel) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var showForgotDialog by remember { mutableStateOf(false) }
+    var forgotEmail by remember { mutableStateOf("") }
+    var forgotLoading by remember { mutableStateOf(false) }
+    var forgotMessage by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier

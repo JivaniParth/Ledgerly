@@ -60,6 +60,8 @@ fun TransactionEntryScreen(
     val creditCards by viewModel.allCreditCards.collectAsState()
     val customWallets by viewModel.allCustomWallets.collectAsState()
     val contacts by viewModel.allContacts.collectAsState()
+    val expenseWalletBalance by viewModel.expenseWalletBalance.collectAsState(initial = 0.0)
+    val savingsWalletBalance by viewModel.savingsWalletBalance.collectAsState(initial = 0.0)
 
     val initialAmount = editingTransaction?.let {
         if (it.amount % 1.0 == 0.0) it.amount.toInt().toString() else it.amount.toString()
@@ -1335,7 +1337,7 @@ fun TransactionEntryScreen(
             Button(
                 onClick = {
                     val amount = amountStr.toDoubleOrNull()
-                    if (amount == null || amount <= 0) {
+                    if (amount == null || amount <= 0 || !amount.isFinite() || amount.isNaN()) {
                         amountError = "Please enter a valid positive number."
                         return@Button
                     }

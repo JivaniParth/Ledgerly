@@ -1,6 +1,7 @@
 package com.parthjivani.ledgerly.data
 
 import android.content.Context
+import com.parthjivani.ledgerly.utils.SecurityUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -37,11 +38,22 @@ class LedgerlyRepository(
 
     // Settings helpers
     suspend fun getSetting(key: String, defaultValue: String): String {
-        return appSettingDao.getSettingByKey(key)?.value ?: defaultValue
+        val raw = appSettingDao.getSettingByKey(key)?.value ?: return defaultValue
+        return if (key == "supabase_access_token" || key == "supabase_refresh_token") {
+            val dec = SecurityUtils.decrypt(raw)
+            if (dec.isNotEmpty()) dec else defaultValue
+        } else {
+            raw
+        }
     }
 
     suspend fun insertSetting(key: String, value: String) {
-        appSettingDao.insertSetting(AppSetting(key, value))
+        val toSave = if (key == "supabase_access_token" || key == "supabase_refresh_token") {
+            SecurityUtils.encrypt(value)
+        } else {
+            value
+        }
+        appSettingDao.insertSetting(AppSetting(key, toSave))
     }
 
     // Budget helper functions
@@ -115,13 +127,18 @@ class LedgerlyRepository(
     suspend fun insertTransaction(transaction: Transaction): Long =
         transactionDao.insertTransaction(transaction)
 
-    suspend fun deleteTransaction(transaction: Transaction) =
+    suspend fun deleteTransaction(transaction: Transaction) {
+        transactionSplitDao.deleteSplitsByTransactionId(transaction.id)
         transactionDao.deleteTransaction(transaction)
+    }
 
     fun getTransactionsForFamilyMember(memberId: Long): Flow<List<Transaction>> =
         transactionDao.getTransactionsForFamilyMember(memberId)
 
-    suspend fun clearAllTransactions() = transactionDao.clearAllTransactions()
+    suspend fun clearAllTransactions() {
+        transactionSplitDao.clearAllSplits()
+        transactionDao.clearAllTransactions()
+    }
 
     suspend fun insertContact(contact: Contact): Long = contactDao.insertContact(contact)
     suspend fun updateContact(contact: Contact) = contactDao.updateContact(contact)
@@ -138,6 +155,7 @@ class LedgerlyRepository(
     suspend fun clearAllLocalData() {
         familyMemberDao.clearAllFamilyMembers()
         transactionDao.clearAllTransactions()
+        transactionSplitDao.clearAllSplits()
         creditCardDao.clearAllCreditCards()
         budgetGoalDao.clearAllBudgetGoals()
         savingsGoalDao.clearAllSavingsGoals()
@@ -152,9 +170,21 @@ class LedgerlyRepository(
             val api = SupabaseClient.api ?: return false
             val allTxs = allTransactions.first()
             if (allTxs.isEmpty()) return true
-            allTxs.map { it.toSupabase() }.chunked(500).forEach { chunk ->
-                api.upsertTransactions(chunk)
+
+            // Optimize: Push only transactions newer than last sync with 5-minute safety overlap buffer
+            val lastSyncTime = getSetting("last_supabase_sync_timestamp", "0").toLongOrNull() ?: 0L
+            val txsToPush = if (lastSyncTime == 0L) {
+                allTxs
+            } else {
+                allTxs.filter { it.date >= (lastSyncTime - 300_000L) }
             }
+
+            if (txsToPush.isNotEmpty()) {
+                txsToPush.map { it.toSupabase() }.chunked(500).forEach { chunk ->
+                    api.upsertTransactions(chunk)
+                }
+            }
+            insertSetting("last_supabase_sync_timestamp", System.currentTimeMillis().toString())
             true
         } catch (e: Exception) {
             e.printStackTrace()

@@ -26,14 +26,12 @@ fun CalculatorKeyboard(
 ) {
     fun evaluate(expr: String): String {
         try {
-            // Remove any trailing operators before evaluating
             var cleanExpr = expr.trim()
             while (cleanExpr.isNotEmpty() && "+-*/.".contains(cleanExpr.last())) {
                 cleanExpr = cleanExpr.dropLast(1)
             }
             if (cleanExpr.isEmpty()) return ""
 
-            // Split by operators keeping operators
             val tokens = ArrayList<String>()
             var currentNum = ""
             for (char in cleanExpr) {
@@ -50,29 +48,27 @@ fun CalculatorKeyboard(
             if (currentNum.isNotEmpty()) {
                 tokens.add(currentNum)
             }
+            if (tokens.isEmpty()) return ""
 
-            // Simple evaluation without strict BEDMAS, just left to right for simplicity in a quick calc
-            // Wait, standard BEDMAS is better. Let's do * and / first
+            // Handle leading negative number: e.g. ["-", "50"] -> ["-50"]
+            if (tokens.size >= 2 && tokens[0] == "-") {
+                tokens[1] = "-" + tokens[1]
+                tokens.removeAt(0)
+            }
+
+            // BEDMAS: Multiplication and Division first
             var i = 0
             while (i < tokens.size) {
                 if (tokens[i] == "*" || tokens[i] == "/") {
-                    val a = tokens[i - 1].toDouble()
-                    val b = tokens[i + 1].toDouble()
+                    if (i == 0 || i + 1 >= tokens.size) return ""
+                    val a = tokens[i - 1].toDoubleOrNull() ?: return ""
+                    val b = tokens[i + 1].toDoubleOrNull() ?: return ""
+                    if (tokens[i] == "/" && b == 0.0) {
+                        // Division by zero disallowed
+                        return ""
+                    }
                     val res = if (tokens[i] == "*") a * b else a / b
-                    tokens[i - 1] = res.toString()
-                    tokens.removeAt(i) // remove operator
-                    tokens.removeAt(i) // remove b
-                    i--
-                }
-                i++
-            }
-            // Now + and -
-            i = 0
-            while (i < tokens.size) {
-                if (tokens[i] == "+" || tokens[i] == "-") {
-                    val a = tokens[i - 1].toDouble()
-                    val b = tokens[i + 1].toDouble()
-                    val res = if (tokens[i] == "+") a + b else a - b
+                    if (res.isInfinite() || res.isNaN()) return ""
                     tokens[i - 1] = res.toString()
                     tokens.removeAt(i) // remove operator
                     tokens.removeAt(i) // remove b
@@ -81,10 +77,29 @@ fun CalculatorKeyboard(
                 i++
             }
 
-            val result = tokens[0].toDouble()
-            return if (result % 1.0 == 0.0) result.toLong().toString() else String.format("%.2f", result)
+            // Addition and Subtraction
+            i = 0
+            while (i < tokens.size) {
+                if (tokens[i] == "+" || tokens[i] == "-") {
+                    if (i == 0 || i + 1 >= tokens.size) return ""
+                    val a = tokens[i - 1].toDoubleOrNull() ?: return ""
+                    val b = tokens[i + 1].toDoubleOrNull() ?: return ""
+                    val res = if (tokens[i] == "+") a + b else a - b
+                    if (res.isInfinite() || res.isNaN()) return ""
+                    tokens[i - 1] = res.toString()
+                    tokens.removeAt(i) // remove operator
+                    tokens.removeAt(i) // remove b
+                    i--
+                }
+                i++
+            }
+
+            val result = tokens[0].toDoubleOrNull() ?: return ""
+            if (result.isInfinite() || result.isNaN()) return ""
+            val rounded = Math.round(result * 100.0) / 100.0
+            return if (rounded % 1.0 == 0.0) rounded.toLong().toString() else String.format(java.util.Locale.US, "%.2f", rounded)
         } catch (e: Exception) {
-            return expr // Return original if error
+            return ""
         }
     }
 

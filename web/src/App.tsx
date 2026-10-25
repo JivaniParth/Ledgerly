@@ -263,6 +263,7 @@ const MainDashboardApp: React.FC = () => {
         contacts={data.contacts}
         expenseCategories={data.expenseCategories}
         incomeCategories={data.incomeCategories}
+        expenseBalance={data.expenseBalance}
       />
 
       {/* Global Calculator Modal */}

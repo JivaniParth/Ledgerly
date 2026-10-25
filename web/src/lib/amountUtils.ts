@@ -165,10 +165,16 @@ export function evaluateMathExpression(expr: string): string {
     let i = 0;
     while (i < tokens.length) {
       if (tokens[i] === '*' || tokens[i] === '/') {
+        if (i === 0 || i + 1 >= tokens.length) return '';
         const a = parseFloat(tokens[i - 1]);
         const b = parseFloat(tokens[i + 1]);
-        if (isNaN(a) || isNaN(b)) return clean;
-        const res = tokens[i] === '*' ? a * b : b === 0 ? 0 : a / b;
+        if (isNaN(a) || isNaN(b)) return '';
+        if (tokens[i] === '/' && b === 0) {
+          // Division by zero disallowed
+          return '';
+        }
+        const res = tokens[i] === '*' ? a * b : a / b;
+        if (!isFinite(res) || isNaN(res)) return '';
         tokens[i - 1] = res.toString();
         tokens.splice(i, 2);
         i--;
@@ -180,10 +186,12 @@ export function evaluateMathExpression(expr: string): string {
     i = 0;
     while (i < tokens.length) {
       if (tokens[i] === '+' || tokens[i] === '-') {
+        if (i === 0 || i + 1 >= tokens.length) return '';
         const a = parseFloat(tokens[i - 1]);
         const b = parseFloat(tokens[i + 1]);
-        if (isNaN(a) || isNaN(b)) return clean;
+        if (isNaN(a) || isNaN(b)) return '';
         const res = tokens[i] === '+' ? a + b : a - b;
+        if (!isFinite(res) || isNaN(res)) return '';
         tokens[i - 1] = res.toString();
         tokens.splice(i, 2);
         i--;
@@ -192,10 +200,10 @@ export function evaluateMathExpression(expr: string): string {
     }
 
     const num = parseFloat(tokens[0]);
-    if (isNaN(num)) return clean;
+    if (isNaN(num) || !isFinite(num)) return '';
     // Format to 2 decimal places if needed or clean integer
     return (Math.round(num * 100) / 100).toString();
   } catch {
-    return expr;
+    return '';
   }
 }

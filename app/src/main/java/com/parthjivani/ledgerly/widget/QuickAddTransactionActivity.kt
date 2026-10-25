@@ -50,11 +50,39 @@ class QuickAddTransactionActivity : ComponentActivity() {
 
         setContent {
             MyApplicationTheme {
+                val repository = LedgerlyRepository.getInstance(applicationContext)
+                val creditCards by repository.allCreditCards.collectAsState(initial = emptyList())
+                val customWallets by repository.allCustomWallets.collectAsState(initial = emptyList())
+
+                var expCats by remember {
+                    mutableStateOf(listOf("Food", "Groceries", "Bills", "Travel", "Entertainment", "Shopping", "Medical", "Other"))
+                }
+                var incCats by remember {
+                    mutableStateOf(listOf("Salary", "Business", "Investment", "Freelance", "Gift", "Other"))
+                }
+
+                LaunchedEffect(Unit) {
+                    val rawExp = repository.getSetting("expense_categories", "")
+                    if (rawExp.isNotEmpty()) {
+                        val parsed = rawExp.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        if (parsed.isNotEmpty()) expCats = parsed
+                    }
+                    val rawInc = repository.getSetting("income_categories", "")
+                    if (rawInc.isNotEmpty()) {
+                        val parsed = rawInc.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        if (parsed.isNotEmpty()) incCats = parsed
+                    }
+                }
+
                 QuickAddContent(
                     initialType = initialType,
+                    expenseCategories = expCats,
+                    incomeCategories = incCats,
+                    creditCards = creditCards,
+                    customWallets = customWallets,
                     onDismiss = { finish() },
-                    onSave = { amount, type, category, wallet, notes ->
-                        saveTransaction(amount, type, category, wallet, notes)
+                    onSave = { amount, type, category, wallet, notes, cardId, walletId ->
+                        saveTransaction(amount, type, category, wallet, notes, cardId, walletId)
                     }
                 )
             }
@@ -66,7 +94,9 @@ class QuickAddTransactionActivity : ComponentActivity() {
         type: TransactionType,
         category: String,
         wallet: WalletType,
-        notes: String
+        notes: String,
+        creditCardId: Long? = null,
+        customWalletId: Long? = null
     ) {
         val repository = LedgerlyRepository.getInstance(applicationContext)
         val tx = Transaction(
@@ -75,7 +105,9 @@ class QuickAddTransactionActivity : ComponentActivity() {
             notes = notes.trim(),
             type = type,
             sourceWallet = wallet,
-            category = category
+            category = category,
+            creditCardId = creditCardId,
+            customWalletId = customWalletId
         )
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -113,19 +145,28 @@ class QuickAddTransactionActivity : ComponentActivity() {
 @Composable
 fun QuickAddContent(
     initialType: TransactionType,
+    expenseCategories: List<String>,
+    incomeCategories: List<String>,
+    creditCards: List<CreditCard>,
+    customWallets: List<CustomWallet>,
     onDismiss: () -> Unit,
-    onSave: (amount: Double, type: TransactionType, category: String, wallet: WalletType, notes: String) -> Unit
+    onSave: (amount: Double, type: TransactionType, category: String, wallet: WalletType, notes: String, cardId: Long?, customWalletId: Long?) -> Unit
 ) {
     var selectedType by remember { mutableStateOf(initialType) }
     var amountText by remember { mutableStateOf("") }
     var notesText by remember { mutableStateOf("") }
     var selectedWallet by remember { mutableStateOf(WalletType.EXPENSE_WALLET) }
+    var selectedCardId by remember { mutableStateOf<Long?>(null) }
+    var selectedCustomWalletId by remember { mutableStateOf<Long?>(null) }
 
-    val expenseCategories = listOf("Food", "Groceries", "Bills", "Travel", "Entertainment", "Shopping", "Medical", "Other")
-    val incomeCategories = listOf("Salary", "Business", "Investment", "Freelance", "Gift", "Other")
-
-    var selectedCategory by remember(selectedType) {
-        mutableStateOf(if (selectedType == TransactionType.PERSONAL_EXPENSE) "Food" else "Salary")
+    var selectedCategory by remember(selectedType, expenseCategories, incomeCategories) {
+        mutableStateOf(
+            if (selectedType == TransactionType.PERSONAL_EXPENSE) {
+                expenseCategories.firstOrNull() ?: "Food"
+            } else {
+                incomeCategories.firstOrNull() ?: "Salary"
+            }
+        )
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -244,19 +285,58 @@ fun QuickAddContent(
                 // Wallet Selector
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Wallet", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         FilterChip(
                             selected = selectedWallet == WalletType.EXPENSE_WALLET,
-                            onClick = { selectedWallet = WalletType.EXPENSE_WALLET },
+                            onClick = {
+                                selectedWallet = WalletType.EXPENSE_WALLET
+                                selectedCardId = null
+                                selectedCustomWalletId = null
+                            },
                             label = { Text("Expense Wallet", fontSize = 12.sp) },
                             shape = RoundedCornerShape(10.dp)
                         )
                         FilterChip(
                             selected = selectedWallet == WalletType.SAVINGS_WALLET,
-                            onClick = { selectedWallet = WalletType.SAVINGS_WALLET },
+                            onClick = {
+                                selectedWallet = WalletType.SAVINGS_WALLET
+                                selectedCardId = null
+                                selectedCustomWalletId = null
+                            },
                             label = { Text("Savings Wallet", fontSize = 12.sp) },
                             shape = RoundedCornerShape(10.dp)
                         )
+                        if (selectedType == TransactionType.PERSONAL_EXPENSE) {
+                            creditCards.forEach { card ->
+                                FilterChip(
+                                    selected = selectedWallet == WalletType.CREDIT_CARD && selectedCardId == card.id,
+                                    onClick = {
+                                        selectedWallet = WalletType.CREDIT_CARD
+                                        selectedCardId = card.id
+                                        selectedCustomWalletId = null
+                                    },
+                                    label = { Text("💳 ${card.cardName}", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                            }
+                        }
+                        customWallets.forEach { cw ->
+                            FilterChip(
+                                selected = selectedWallet == WalletType.TEMPORARY_WALLET && selectedCustomWalletId == cw.id,
+                                onClick = {
+                                    selectedWallet = WalletType.TEMPORARY_WALLET
+                                    selectedCustomWalletId = cw.id
+                                    selectedCardId = null
+                                },
+                                label = { Text("👛 ${cw.name}", fontSize = 12.sp) },
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
                     }
                 }
 
@@ -286,8 +366,16 @@ fun QuickAddContent(
                     Button(
                         onClick = {
                             val amt = amountText.toDoubleOrNull()
-                            if (amt != null && amt > 0.0) {
-                                onSave(amt, selectedType, selectedCategory, selectedWallet, notesText)
+                            if (amt != null && amt > 0.0 && amt.isFinite() && !amt.isNaN()) {
+                                onSave(
+                                    Math.round(amt * 100.0) / 100.0,
+                                    selectedType,
+                                    selectedCategory,
+                                    selectedWallet,
+                                    notesText,
+                                    selectedCardId,
+                                    selectedCustomWalletId
+                                )
                             }
                         },
                         enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0.0,

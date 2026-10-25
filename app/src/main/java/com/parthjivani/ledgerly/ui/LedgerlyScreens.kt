@@ -530,14 +530,30 @@ fun TransactionRow(
     val indicatorCharOrEmoji = when (transaction.type) {
         TransactionType.FAMILY_TRANSFER -> member?.name?.firstOrNull()?.toString()?.uppercase() ?: "F"
         TransactionType.PERSONAL_EXPENSE -> {
+            val catL = transaction.category.lowercase()
             val noteL = transaction.notes.lowercase()
             when {
+                catL.contains("grocer") -> "🛒"
+                catL.contains("food") || catL.contains("dining") -> "🍔"
+                catL.contains("bill") || catL.contains("utility") || catL.contains("electric") || catL.contains("recharge") -> "⚡"
+                catL.contains("travel") || catL.contains("fuel") || catL.contains("transport") -> "🚗"
+                catL.contains("medic") || catL.contains("health") || catL.contains("doctor") -> "💊"
+                catL.contains("entertain") || catL.contains("movie") -> "🎬"
+                catL.contains("shop") -> "🛍️"
+                catL.contains("educat") || catL.contains("school") || catL.contains("tuition") || catL.contains("book") -> "📚"
+                catL.contains("invest") -> "📈"
+                catL.contains("rent") || catL.contains("home") || catL.contains("house") -> "🏠"
+                catL.contains("gift") || catL.contains("donation") -> "🎁"
+                // Check notes keywords if category is generic/other
                 noteL.contains("coffee") || noteL.contains("starbucks") || noteL.contains("cafe") || noteL.contains("tea") -> "☕"
                 noteL.contains("food") || noteL.contains("restaurant") || noteL.contains("dinner") || noteL.contains("lunch") -> "🍔"
-                noteL.contains("cab") || noteL.contains("fuel") || noteL.contains("petrol") || noteL.contains("auto") || noteL.contains("travel") -> "🚗"
+                noteL.contains("cab") || noteL.contains("fuel") || noteL.contains("petrol") || noteL.contains("auto") || noteL.contains("uber") -> "🚗"
                 noteL.contains("medicine") || noteL.contains("doctor") || noteL.contains("hospital") || noteL.contains("health") -> "💊"
-                noteL.contains("movie") || noteL.contains("netflix") || noteL.contains("show") || noteL.contains("entertainment") -> "🎬"
-                else -> "☕"
+                noteL.contains("movie") || noteL.contains("netflix") || noteL.contains("cinema") -> "🎬"
+                noteL.contains("flight") || noteL.contains("airport") || noteL.contains("ticket") -> "✈️"
+                noteL.contains("rent") || noteL.contains("flat") || noteL.contains("hostel") -> "🏠"
+                noteL.contains("salary") -> "💵"
+                else -> "🏷️"
             }
         }
         TransactionType.PERSONAL_INCOME -> "💰"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Lock, Mail, User, ShieldCheck, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, User, ShieldCheck, ArrowRight, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export const AuthPage: React.FC = () => {
   const { login, signup } = useAuth();
@@ -14,6 +15,31 @@ export const AuthPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Forgot password states
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotStatus, setForgotStatus] = useState<{ success: boolean; msg: string } | null>(null);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotLoading(true);
+    setForgotStatus(null);
+    try {
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(forgotEmail);
+      if (resetErr) {
+        setForgotStatus({ success: false, msg: resetErr.message });
+      } else {
+        setForgotStatus({ success: true, msg: 'Password reset link sent to your email!' });
+      }
+    } catch (err: any) {
+      setForgotStatus({ success: false, msg: err.message || 'Failed to send reset link.' });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +189,21 @@ export const AuthPage: React.FC = () => {
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-xs font-medium focus:outline-none focus:ring-2 focus:ring-finance-blue"
               />
             </div>
+            {isLoginTab && (
+              <div className="flex justify-end mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setForgotStatus(null);
+                    setShowForgotModal(true);
+                  }}
+                  className="text-[11px] font-semibold text-finance-blue hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </div>
 
           {!isLoginTab && (
@@ -201,6 +242,62 @@ export const AuthPage: React.FC = () => {
           </span>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Reset Password</h3>
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-darkMuted">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+            <form onSubmit={handleResetPassword} className="space-y-3">
+              <input
+                type="email"
+                required
+                placeholder="name@example.com"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-lightBorder dark:border-darkBorder bg-gray-50 dark:bg-darkCard text-xs font-medium focus:outline-none focus:ring-2 focus:ring-finance-blue"
+              />
+              {forgotStatus && (
+                <p
+                  className={`text-xs font-medium ${
+                    forgotStatus.success ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+                  }`}
+                >
+                  {forgotStatus.msg}
+                </p>
+              )}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="flex-1 py-2 rounded-xl border border-lightBorder dark:border-darkBorder text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-darkCard"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="flex-1 py-2 rounded-xl bg-finance-blue text-white text-xs font-bold hover:bg-finance-blueDark disabled:opacity-50"
+                >
+                  {forgotLoading ? 'Sending...' : 'Send Link'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
