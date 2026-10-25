@@ -1,5 +1,7 @@
 package com.parthjivani.ledgerly.ui
 
+import android.content.Context
+import java.io.File
 import org.json.JSONObject
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -138,12 +140,27 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     private val _userName = MutableStateFlow<String>("")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
+    // In-App Auto-Updater
+    val updateManager = UpdateManager()
+    private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
+    val updateInfo: StateFlow<AppUpdateInfo?> = _updateInfo.asStateFlow()
+
+    private val _showUpdateDialog = MutableStateFlow(false)
+    val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+
+    val downloadState = updateManager.downloadState
+    private var downloadedApkFile: File? = null
+
     // Sync threshold: skip Supabase startup pull if data was synced within last 30 minutes
     private val SYNC_THRESHOLD_MS = 30L * 60L * 1000L
 
     init {
         loadThemeFromSettings()
         loadCategoriesFromSettings()
+        checkForUpdates(isManual = false)
         viewModelScope.launch(Dispatchers.IO) {
             val savedToken = repository.getSetting("supabase_access_token", "")
             val savedRefreshToken = repository.getSetting("supabase_refresh_token", "")
@@ -1484,6 +1501,64 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) { onResult(false, e.localizedMessage) }
             }
+        }
+    }
+
+    // In-App Auto-Updater actions
+    fun checkForUpdates(isManual: Boolean = false, onResult: ((Boolean, String?) -> Unit)? = null) {
+        viewModelScope.launch {
+            _isCheckingUpdate.value = true
+            val result = updateManager.checkForUpdates()
+            _isCheckingUpdate.value = false
+            result.onSuccess { info ->
+                _updateInfo.value = info
+                if (info.isUpdateAvailable) {
+                    _showUpdateDialog.value = true
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(true, "Update found: ${info.latestVersion}")
+                    }
+                } else {
+                    if (isManual) {
+                        withContext(Dispatchers.Main) {
+                            onResult?.invoke(false, "You're already on the latest version (v${com.parthjivani.ledgerly.BuildConfig.VERSION_NAME})")
+                        }
+                    }
+                }
+            }.onFailure { err ->
+                if (isManual) {
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(false, "Could not check for updates: ${err.localizedMessage}")
+                    }
+                }
+            }
+        }
+    }
+
+    fun startUpdateDownload(context: Context) {
+        val info = _updateInfo.value ?: return
+        viewModelScope.launch {
+            val file = updateManager.downloadUpdate(context, info.downloadUrl)
+            if (file != null) {
+                downloadedApkFile = file
+            }
+        }
+    }
+
+    fun installDownloadedApk(context: Context) {
+        val file = downloadedApkFile
+        if (file != null && file.exists()) {
+            updateManager.installApk(context, file)
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _showUpdateDialog.value = false
+        updateManager.resetState()
+    }
+
+    fun openUpdateDialog() {
+        if (_updateInfo.value?.isUpdateAvailable == true) {
+            _showUpdateDialog.value = true
         }
     }
 

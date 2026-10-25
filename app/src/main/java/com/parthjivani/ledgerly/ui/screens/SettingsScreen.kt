@@ -1215,6 +1215,57 @@ fun SettingsScreen(
                     }
                 }
             item {
+                Spacer(modifier = Modifier.height(16.dp))
+                val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+                val context = androidx.compose.ui.platform.LocalContext.current
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Ledgerly Updates", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Current Version: v${com.parthjivani.ledgerly.BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.checkForUpdates(isManual = true) { isNew, message ->
+                                    if (message != null) {
+                                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            enabled = !isCheckingUpdate,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            if (isCheckingUpdate) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Check", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
                     onClick = { viewModel.logout() },

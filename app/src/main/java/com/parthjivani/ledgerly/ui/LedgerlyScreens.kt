@@ -334,6 +334,21 @@ fun MainAppContainer(viewModel: LedgerlyViewModel) {
                     }
                 }
             }
+
+            // In-App Auto-Update Dialog
+            val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
+            val updateInfo by viewModel.updateInfo.collectAsState()
+            val downloadState by viewModel.downloadState.collectAsState()
+
+            if (showUpdateDialog && updateInfo != null) {
+                com.parthjivani.ledgerly.ui.components.AppUpdateDialog(
+                    updateInfo = updateInfo!!,
+                    downloadState = downloadState,
+                    onStartDownload = { viewModel.startUpdateDownload(context) },
+                    onInstall = { viewModel.installDownloadedApk(context) },
+                    onDismiss = { viewModel.dismissUpdateDialog() }
+                )
+            }
         }
     }
 }
