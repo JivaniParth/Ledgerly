@@ -10,12 +10,21 @@ android {
   namespace = "com.parthjivani.ledgerly"
   compileSdk = 36
 
+  val appVersionName: String = (project.findProperty("appVersionName") as? String)
+    ?.takeIf { it.isNotBlank() }
+    ?: System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() }
+    ?: "1.2.0"
+
+  val appVersionCode: Int = (project.findProperty("appVersionCode") as? String)?.toIntOrNull()
+    ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
+    ?: 5
+
   defaultConfig {
     applicationId = "com.parthjivani.ledgerly"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.0.2"
+    versionCode = appVersionCode
+    versionName = appVersionName
     multiDexEnabled = true
 
     base.archivesName.set("ledgerly")

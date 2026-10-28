@@ -35,8 +35,20 @@ jobs:
       - name: Grant Execute Permission to Gradle Wrapper
         run: chmod +x gradlew
 
+      - name: Compute App Version
+        id: version_info
+        run: |
+          RAW_TAG="${{ github.ref_name }}"
+          CLEAN_VER="${RAW_TAG#v}"
+          if [ -z "$CLEAN_VER" ] || [ "$CLEAN_VER" = "main" ]; then
+            CLEAN_VER="1.2.0"
+          fi
+          echo "APP_VER_NAME=$CLEAN_VER" >> $GITHUB_ENV
+          CODE=$((GITHUB_RUN_NUMBER + 10))
+          echo "APP_VER_CODE=$CODE" >> $GITHUB_ENV
+
       - name: Build Android APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug -PappVersionName="${{ env.APP_VER_NAME }}" -PappVersionCode="${{ env.APP_VER_CODE }}" --stacktrace
 
       - name: Prepare APK for Distribution
         run: |
