@@ -152,6 +152,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       else if (familyMembers.length > 0) setBorrowLendTargetKey(`F_${familyMembers[0].id}`);
     }
     setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTransaction, isOpen]);
 
   if (!isOpen) return null;

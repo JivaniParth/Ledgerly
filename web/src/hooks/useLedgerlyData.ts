@@ -23,6 +23,10 @@ import {
 } from '../lib/calculations';
 import { useAuth } from '../context/AuthContext';
 
+// Default Categories if remote is empty
+const DEFAULT_EXPENSE_CATEGORIES = ['Groceries', 'Entertainment', 'Bills', 'Travel', 'Medical', 'Shopping', 'Dining', 'Other'];
+const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Business', 'Investment', 'Freelance', 'Gift', 'Other'];
+
 export function useLedgerlyData() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -41,18 +45,14 @@ export function useLedgerlyData() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [splits, setSplits] = useState<TransactionSplit[]>([]);
 
-  // Default Categories if remote is empty
-  const defaultExpenseCategories = ['Groceries', 'Entertainment', 'Bills', 'Travel', 'Medical', 'Shopping', 'Dining', 'Other'];
-  const defaultIncomeCategories = ['Salary', 'Business', 'Investment', 'Freelance', 'Gift', 'Other'];
-
   const expenseCategories = useMemo(() => {
     const list = categories.filter((c) => c.type === 'expense').map((c) => c.name);
-    return list.length ? list : defaultExpenseCategories;
+    return list.length ? list : DEFAULT_EXPENSE_CATEGORIES;
   }, [categories]);
 
   const incomeCategories = useMemo(() => {
     const list = categories.filter((c) => c.type === 'income').map((c) => c.name);
-    return list.length ? list : defaultIncomeCategories;
+    return list.length ? list : DEFAULT_INCOME_CATEGORIES;
   }, [categories]);
 
   // Fetch all data from Supabase

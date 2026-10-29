@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Ledgerly — Icon Background (Light Mode / Default)
-    Clean white background — lets the deep indigo symbol stand out sharply.
-    A very subtle warm-gray tint in the bottom-right corner adds depth
-    without being distracting.
+    Ledgerly — Icon Background (Emerald Gradient)
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#FFFFFF" />
+    <gradient
+        android:startColor="#033E32"
+        android:endColor="#01241B"
+        android:angle="270" />
 </shape>

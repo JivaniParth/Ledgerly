@@ -80,9 +80,11 @@ export const AuthPage: React.FC = () => {
       <div className="w-full max-w-md bg-white dark:bg-darkSurface border border-lightBorder dark:border-darkBorder rounded-3xl p-8 shadow-xl space-y-6">
         {/* App Logo & Header */}
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-finance-blue text-white flex items-center justify-center font-bold text-2xl shadow-lg mx-auto">
-            L
-          </div>
+          <img
+            src="/logo.png"
+            alt="Ledgerly Logo"
+            className="w-16 h-16 rounded-2xl shadow-xl mx-auto object-cover ring-1 ring-emerald-500/20"
+          />
           <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white">
             Ledgerly
           </h1>

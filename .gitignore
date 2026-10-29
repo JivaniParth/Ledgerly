@@ -20,6 +20,8 @@ debug.keystore
 # Build folders
 build/
 */build/
+release/
+*/release/
 out/
 
 # IDE specific

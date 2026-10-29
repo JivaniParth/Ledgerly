@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Ledgerly — Icon Background (Dark Mode / Night)
-    Deep charcoal-navy background (#0D1117) — matches AMOLED dark UIs.
-    Pairs with the dark-mode foreground which uses a white symbol + brighter gold.
+    Ledgerly — Icon Background (Night Mode Emerald Gradient)
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#0D1117" />
+    <gradient
+        android:startColor="#023026"
+        android:endColor="#011812"
+        android:angle="270" />
 </shape>

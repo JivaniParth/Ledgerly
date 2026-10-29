@@ -65,23 +65,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {collapsed ? (
           <button
             onClick={() => setCollapsed(false)}
-            className="w-10 h-10 rounded-xl bg-finance-blue text-white flex items-center justify-center font-bold text-lg shadow-md hover:scale-105 active:scale-95 transition-all group relative cursor-pointer"
+            className="w-10 h-10 rounded-xl relative flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all group cursor-pointer overflow-hidden ring-1 ring-emerald-500/20"
             title="Expand sidebar"
           >
-            <span className="group-hover:hidden">L</span>
-            <ChevronRight size={20} className="hidden group-hover:block" />
+            <img
+              src="/logo.png"
+              alt="Ledgerly"
+              className="w-full h-full object-cover group-hover:hidden"
+            />
+            <ChevronRight size={20} className="hidden group-hover:block text-gray-700 dark:text-gray-200" />
           </button>
         ) : (
           <>
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-10 h-10 rounded-xl bg-finance-blue text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0">
-                L
-              </div>
+              <img
+                src="/logo.png"
+                alt="Ledgerly"
+                className="w-10 h-10 rounded-xl shadow-md shrink-0 object-cover ring-1 ring-emerald-500/20"
+              />
               <div className="flex flex-col truncate">
                 <span className="font-bold text-lg tracking-tight text-gray-900 dark:text-white leading-tight">
                   Ledgerly
                 </span>
-                <span className="text-xs text-finance-blue font-medium">Personal Finance</span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Personal Finance</span>
               </div>
             </div>
             <button
