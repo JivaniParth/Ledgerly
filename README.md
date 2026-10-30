@@ -184,7 +184,7 @@ npm run build
 ## 🚢 CI/CD & Automated Releases
 
 Ledgerly uses **GitHub Actions** for continuous integration and automated builds:
-- Pushing a version tag (e.g. `git tag v1.0.2 && git push origin v1.0.2`) triggers `.github/workflows/build-apk.yml`.
+- Pushing a version tag (e.g. `git tag v2.1.0 && git push origin v2.1.0`) triggers `.github/workflows/build-apk.yml`.
 - The pipeline sets up JDK 17, compiles the Android APK, packages it, and creates a tagged GitHub Release with downloadable APK assets and release notes.
 
 ---

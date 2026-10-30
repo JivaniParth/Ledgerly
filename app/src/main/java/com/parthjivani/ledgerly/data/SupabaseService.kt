@@ -120,6 +120,12 @@ data class SupabaseCategory(
 )
 
 @JsonClass(generateAdapter = true)
+data class SupabaseAppSetting(
+    @param:Json(name = "key") val key: String,
+    @param:Json(name = "value") val value: String
+)
+
+@JsonClass(generateAdapter = true)
 data class SupabaseRecurringTransaction(
     @param:Json(name = "id") val id: Long,
     @param:Json(name = "amount") val amount: Double?,
@@ -386,6 +392,14 @@ interface SupabaseApi {
 
     @DELETE("rest/v1/categories")
     suspend fun deleteCategory(@Query("name") name: String, @Query("type") type: String)
+
+    // 8. App Settings
+    @GET("rest/v1/app_settings")
+    suspend fun getAppSettings(@Query("select") select: String = "*"): List<SupabaseAppSetting>
+
+    @Headers("Prefer: resolution=merge-duplicates,return=minimal")
+    @POST("rest/v1/app_settings")
+    suspend fun upsertAppSettings(@Body settings: List<SupabaseAppSetting>)
 }
 
 // Normalizes JSON arrays so all objects have identical keys (fills missing keys with null).
@@ -556,8 +570,14 @@ interface SupabaseAuthApi {
     @POST("auth/v1/token?grant_type=refresh_token")
     suspend fun refreshToken(@Body request: SupabaseRefreshTokenRequest): SupabaseAuthResponse
 
+    @GET("auth/v1/user")
+    suspend fun getUser(): okhttp3.ResponseBody
+
     @PUT("auth/v1/user")
     suspend fun updateUser(@Body request: SupabaseUpdateUserRequest): SupabaseUser
+
+    @PUT("auth/v1/user")
+    suspend fun updateUserRaw(@Body request: okhttp3.RequestBody): okhttp3.ResponseBody
 
     @POST("auth/v1/recover")
     suspend fun recoverPassword(@Body request: SupabaseRecoverRequest): retrofit2.Response<Unit>

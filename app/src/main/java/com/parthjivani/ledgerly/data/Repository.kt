@@ -206,6 +206,64 @@ class LedgerlyRepository(
                     api.upsertTransactions(chunk)
                 }
             }
+
+            // 3. Push savings goals
+            val allSavings = allSavingsGoals.first()
+            if (allSavings.isNotEmpty()) {
+                allSavings.map { it.toSupabase() }.chunked(500).forEach { chunk ->
+                    api.upsertSavingsGoals(chunk)
+                }
+            }
+
+            // 4. Push budget goals
+            val allBudget = allBudgetGoals.first()
+            if (allBudget.isNotEmpty()) {
+                allBudget.map { it.toSupabase() }.chunked(500).forEach { chunk ->
+                    api.upsertBudgetGoals(chunk)
+                }
+            }
+
+            // 5. Push recurring transactions
+            val allRecur = allRecurringTransactions.first()
+            if (allRecur.isNotEmpty()) {
+                allRecur.map { it.toSupabase() }.chunked(500).forEach { chunk ->
+                    api.upsertRecurringTransactions(chunk)
+                }
+            }
+
+            // 6. Push categories
+            val localCats = getSetting("categories_list", "")
+            val localIncCats = getSetting("income_categories_list", "")
+            val catList = mutableListOf<SupabaseCategory>()
+            if (localCats.isNotEmpty()) {
+                localCats.split(",").map { it.trim().removeSurrounding("\"").removeSurrounding("[", "]") }
+                    .filter { it.isNotEmpty() }
+                    .forEach { catList.add(SupabaseCategory(it, "expense")) }
+            }
+            if (localIncCats.isNotEmpty()) {
+                localIncCats.split(",").map { it.trim().removeSurrounding("\"").removeSurrounding("[", "]") }
+                    .filter { it.isNotEmpty() }
+                    .forEach { catList.add(SupabaseCategory(it, "income")) }
+            }
+            if (catList.isNotEmpty()) {
+                catList.chunked(500).forEach { chunk ->
+                    try { api.upsertCategories(chunk) } catch (_: Exception) {}
+                }
+            }
+
+            // 7. Push app settings if configured
+            try {
+                val theme = getSetting("app_theme", "dark")
+                val expColor = getSetting("expense_wallet_color", "#1A56DB")
+                val cardColor = getSetting("credit_card_wallet_color", "#0097A7")
+                val profileName = getSetting("user_profile_name", "User")
+                api.upsertAppSettings(listOf(
+                    SupabaseAppSetting("app_theme", theme),
+                    SupabaseAppSetting("expense_wallet_color", expColor),
+                    SupabaseAppSetting("credit_card_wallet_color", cardColor),
+                    SupabaseAppSetting("user_profile_name", profileName)
+                ))
+            } catch (_: Exception) {}
             insertSetting("last_supabase_sync_timestamp", System.currentTimeMillis().toString())
             true
         } catch (e: Exception) {

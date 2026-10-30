@@ -3,6 +3,8 @@ package com.parthjivani.ledgerly.ui
 import android.content.Context
 import java.io.File
 import org.json.JSONObject
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -154,8 +156,8 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     val downloadState = updateManager.downloadState
     private var downloadedApkFile: File? = null
 
-    // Sync threshold: skip Supabase startup pull if data was synced within last 30 minutes
-    private val SYNC_THRESHOLD_MS = 30L * 60L * 1000L
+    // Sync threshold: 10 seconds to allow responsive sync when returning to app while preventing excessive churn
+    private val SYNC_THRESHOLD_MS = 10L * 1000L
 
     init {
         loadThemeFromSettings()
@@ -217,6 +219,10 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         try {
             val api = SupabaseClient.api
             if (api != null) {
+                // 1. Pull user settings and profile metadata
+                pullRemoteSettings()
+
+                // 2. Fetch all online entities
                 val supMembers = api.getFamilyMembers()
                 val supCards = api.getCreditCards()
                 val supCustomWallets = api.getCustomWallets()
@@ -235,14 +241,14 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 val supRecurrings = api.getRecurringTransactions()
                 val supCategories = try { api.getCategories() } catch (e: Exception) { emptyList() }
 
-                val totalOnline = supMembers.size + supCards.size + supTxs.size + supGoals.size + supSavingsGoals.size + supRecurrings.size
+                val totalOnline = supMembers.size + supCards.size + supTxs.size + supGoals.size + supSavingsGoals.size + supRecurrings.size + supCategories.size
                 if (totalOnline == 0) {
                     val localMembers = repository.allFamilyMembers.first()
                     val localTxs = repository.allTransactions.first()
                     if (localMembers.isEmpty() && localTxs.isEmpty()) {
                         _supabaseSyncSuccess.value = "Connected to Supabase (Database setup ready)"
                     } else {
-                        // Supabase is empty, but local has data. Auto-push to avoid blank state or overwrites
+                        // Supabase is empty, but local has data. Auto-push to seed remote database
                         val autoBatchSize = 500
                         localMembers.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertFamilyMembers(chunk) }
                         val localCards = repository.allCreditCards.first()
@@ -257,56 +263,78 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                         if (localSavingsGoals.isNotEmpty()) localSavingsGoals.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertSavingsGoals(chunk) }
                         val localRecurrings = repository.allRecurringTransactions.first()
                         if (localRecurrings.isNotEmpty()) localRecurrings.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertRecurringTransactions(chunk) }
-                        
-                        val localCats = repository.getSetting("categories_list", "Groceries,Entertainment,Bills,Travel,Medical,Other").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        val localIncCats = repository.getSetting("income_categories_list", "Salary,Business,Investment,Freelance,Gift,Other").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        val catPushList = localCats.map { SupabaseCategory(it, "expense") } + localIncCats.map { SupabaseCategory(it, "income") }
-                        if (catPushList.isNotEmpty()) {
-                            catPushList.chunked(autoBatchSize).forEach { chunk -> api.upsertCategories(chunk) }
-                        }
 
-                        _supabaseSyncSuccess.value = "Synced: Auto-uploaded ${localAllTxs.size} local transactions to your new Supabase database!"
+                        val catPushList = _categories.value.map { SupabaseCategory(it, "expense") } + _incomeCategories.value.map { SupabaseCategory(it, "income") }
+                        if (catPushList.isNotEmpty()) {
+                            catPushList.chunked(autoBatchSize).forEach { chunk -> try { api.upsertCategories(chunk) } catch (_: Exception) {} }
+                        }
+                        pushRemoteSettings()
+
+                        _supabaseSyncSuccess.value = "Synced: Initialized your remote Supabase database with local data!"
                     }
                 } else {
-                    // ── Push local data first so offline records are saved to Supabase ──
-                    // This ensures any records added while offline are not lost when we
-                    // clear local storage and replace it with the server's data.
+                    // Supabase has data: Remote is authoritative for cross-platform state.
+                    // To prevent overwriting remote edits made on Web, only push locally created items that DO NOT exist on the server.
                     val autoBatchSize = 500
-                    val localMembersForPush = repository.allFamilyMembers.first()
-                    val localCardsForPush = repository.allCreditCards.first()
-                    val localWalletsForPush = repository.allCustomWallets.first()
-                    val localTxsForPush = repository.allTransactions.first()
-                    val localGoalsForPush = repository.allBudgetGoals.first()
-                    val localSavingsGoalsForPush = repository.allSavingsGoals.first()
-                    val localRecurringsForPush = repository.allRecurringTransactions.first()
 
-                    if (localMembersForPush.isNotEmpty()) localMembersForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertFamilyMembers(chunk) }
-                    if (localCardsForPush.isNotEmpty()) localCardsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertCreditCards(chunk) }
-                    if (localWalletsForPush.isNotEmpty()) localWalletsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertCustomWallets(chunk) }
-                    if (localTxsForPush.isNotEmpty()) localTxsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertTransactions(chunk) }
-                    if (localGoalsForPush.isNotEmpty()) localGoalsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertBudgetGoals(chunk) }
-                    if (localSavingsGoalsForPush.isNotEmpty()) localSavingsGoalsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertSavingsGoals(chunk) }
-                    if (localRecurringsForPush.isNotEmpty()) localRecurringsForPush.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertRecurringTransactions(chunk) }
+                    val remoteTxIds = supTxs.map { it.id }.toSet()
+                    val localTxs = repository.allTransactions.first()
+                    val offlineTxs = localTxs.filter { it.id !in remoteTxIds }
+                    if (offlineTxs.isNotEmpty()) {
+                        offlineTxs.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertTransactions(chunk) }
+                    }
 
-                    // ── Now re-fetch from Supabase (which now includes our offline records) ──
-                    val mergedTxs = buildList {
-                        val pageSize = 1000
-                        var offset = 0
-                        while (true) {
-                            val page = api.getTransactions(range = "$offset-${offset + pageSize - 1}")
-                            addAll(page)
-                            if (page.size < pageSize) break
-                            offset += pageSize
+                    val remoteSavingsIds = supSavingsGoals.map { it.id }.toSet()
+                    val localSavings = repository.allSavingsGoals.first()
+                    val offlineSavings = localSavings.filter { it.id !in remoteSavingsIds }
+                    if (offlineSavings.isNotEmpty()) {
+                        offlineSavings.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertSavingsGoals(chunk) }
+                    }
+
+                    val remoteRecurrIds = supRecurrings.map { it.id }.toSet()
+                    val localRecurrs = repository.allRecurringTransactions.first()
+                    val offlineRecurrs = localRecurrs.filter { it.id !in remoteRecurrIds }
+                    if (offlineRecurrs.isNotEmpty()) {
+                        offlineRecurrs.map { it.toSupabase() }.chunked(autoBatchSize).forEach { chunk -> api.upsertRecurringTransactions(chunk) }
+                    }
+
+                    // Categories: If remote has categories, adopt remote. If remote is empty, seed from local.
+                    if (supCategories.isEmpty()) {
+                        val catPushList = _categories.value.map { SupabaseCategory(it, "expense") } + _incomeCategories.value.map { SupabaseCategory(it, "income") }
+                        if (catPushList.isNotEmpty()) {
+                            catPushList.chunked(autoBatchSize).forEach { chunk -> try { api.upsertCategories(chunk) } catch (_: Exception) {} }
+                        }
+                    } else {
+                        val newExpCats = supCategories.filter { it.type == "expense" }.map { it.name }
+                        val newIncCats = supCategories.filter { it.type == "income" }.map { it.name }
+                        if (newExpCats.isNotEmpty()) {
+                            repository.insertSetting("categories_list", encodeCategories(newExpCats))
+                            _categories.value = newExpCats
+                        }
+                        if (newIncCats.isNotEmpty()) {
+                            repository.insertSetting("income_categories_list", encodeCategories(newIncCats))
+                            _incomeCategories.value = newIncCats
                         }
                     }
-                    val mergedMembers = api.getFamilyMembers()
-                    val mergedCards = api.getCreditCards()
-                    val mergedWallets = api.getCustomWallets()
-                    val mergedGoals = api.getBudgetGoals()
-                    val mergedSavingsGoals = api.getSavingsGoals()
-                    val mergedRecurrings = api.getRecurringTransactions()
 
-                    // ── Replace local DB with the fully merged server state ──
+                    // If offline records were uploaded, re-fetch merged lists
+                    val finalTxs = if (offlineTxs.isNotEmpty()) {
+                        buildList {
+                            val pageSize = 1000
+                            var offset = 0
+                            while (true) {
+                                val page = api.getTransactions(range = "$offset-${offset + pageSize - 1}")
+                                addAll(page)
+                                if (page.size < pageSize) break
+                                offset += pageSize
+                            }
+                        }
+                    } else supTxs
+
+                    val finalSavingsGoals = if (offlineSavings.isNotEmpty()) api.getSavingsGoals() else supSavingsGoals
+                    val finalRecurrings = if (offlineRecurrs.isNotEmpty()) api.getRecurringTransactions() else supRecurrings
+
+                    // Replace local Room database with authoritative server state
                     repository.clearAllFamilyMembers()
                     repository.clearAllCreditCards()
                     repository.clearAllCustomWallets()
@@ -315,27 +343,17 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     repository.clearAllSavingsGoals()
                     repository.clearAllRecurringTransactions()
 
-                    mergedMembers.forEach { repository.insertFamilyMember(it.toRoom()) }
-                    mergedCards.forEach { repository.insertCreditCard(it.toRoom()) }
-                    mergedWallets.forEach { repository.insertCustomWallet(it.toRoom()) }
-                    mergedTxs.forEach { repository.insertTransaction(it.toRoom()) }
-                    mergedGoals.forEach { repository.insertBudgetGoal(it.toRoom()) }
-                    mergedSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
-                    mergedRecurrings.forEach { repository.insertRecurringTransaction(it.toRoom()) }
+                    supMembers.forEach { repository.insertFamilyMember(it.toRoom()) }
+                    supCards.forEach { repository.insertCreditCard(it.toRoom()) }
+                    supCustomWallets.forEach { repository.insertCustomWallet(it.toRoom()) }
+                    finalTxs.forEach { repository.insertTransaction(it.toRoom()) }
+                    supGoals.forEach { repository.insertBudgetGoal(it.toRoom()) }
+                    finalSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
+                    finalRecurrings.forEach { repository.insertRecurringTransaction(it.toRoom()) }
 
-                    if (supCategories.isNotEmpty()) {
-                        val newExpCats = supCategories.filter { it.type == "expense" }.map { it.name }.joinToString(",")
-                        val newIncCats = supCategories.filter { it.type == "income" }.map { it.name }.joinToString(",")
-                        repository.insertSetting("categories_list", newExpCats)
-                        repository.insertSetting("income_categories_list", newIncCats)
-                        _categories.value = newExpCats.split(",").filter { it.isNotEmpty() }
-                        _incomeCategories.value = newIncCats.split(",").filter { it.isNotEmpty() }
-                    }
-
-                    // Save sync timestamp to avoid redundant fetches within threshold window
                     repository.insertSetting("last_synced_at", System.currentTimeMillis().toString())
 
-                    val roomTxs = mergedTxs.map { it.toRoom() }
+                    val roomTxs = finalTxs.map { it.toRoom() }
                     val totalExp = roomTxs.filter { it.type == TransactionType.PERSONAL_EXPENSE && it.sourceWallet == WalletType.EXPENSE_WALLET }.sumOf { it.amount }
                     val totalInc = roomTxs.filter { it.type == TransactionType.PERSONAL_INCOME && it.sourceWallet == WalletType.EXPENSE_WALLET }.sumOf { it.amount }
                     val famRec = roomTxs.filter { it.type == TransactionType.FAMILY_TRANSFER && (it.sourceWallet == WalletType.EXPENSE_WALLET || it.destinationWallet == WalletType.EXPENSE_WALLET) && it.direction == TransactionDirection.RECEIVED_FROM_THEM }.sumOf { it.amount }
@@ -344,7 +362,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     val walletAdd = roomTxs.filter { it.type == TransactionType.WALLET_TRANSFER && it.destinationWallet == WalletType.EXPENSE_WALLET }.sumOf { it.amount }
                     val calculated = totalInc - totalExp + famRec - famGiv - walletSub + walletAdd
 
-                    _supabaseSyncSuccess.value = "Txs: ${roomTxs.size}. Exp: $totalExp, Inc: $totalInc, FamRec: $famRec, FamGiv: $famGiv, WAdd: $walletAdd, WSub: $walletSub. Calculated Balance: $calculated"
+                    _supabaseSyncSuccess.value = "Synced with Supabase! Goals: ${finalSavingsGoals.size}, Txs: ${roomTxs.size}. Balance: $calculated"
                 }
             }
         } catch (e: Exception) {
@@ -780,6 +798,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
             try {
                 _appTheme.value = theme
                 repository.insertSetting("app_theme", theme)
+                pushRemoteSettings(theme = theme)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -790,6 +809,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _expenseWalletColor.value = colorHex
             repository.insertSetting("expense_wallet_color", colorHex)
+            pushRemoteSettings(expenseColor = colorHex)
         }
     }
 
@@ -797,7 +817,122 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _creditCardWalletColor.value = colorHex
             repository.insertSetting("credit_card_wallet_color", colorHex)
+            pushRemoteSettings(cardColor = colorHex)
         }
+    }
+
+    private suspend fun pullRemoteSettings() {
+        try {
+            val authApi = SupabaseClient.authApi ?: return
+            val responseBody = authApi.getUser()
+            val jsonStr = responseBody.string()
+            val userObj = JSONObject(jsonStr)
+            val metadata = userObj.optJSONObject("user_metadata")
+            if (metadata != null) {
+                val remoteTheme = metadata.optString("app_theme", "")
+                if (remoteTheme.isNotEmpty() && remoteTheme != _appTheme.value) {
+                    _appTheme.value = remoteTheme
+                    repository.insertSetting("app_theme", remoteTheme)
+                }
+                val remoteExpColor = metadata.optString("expense_wallet_color", "")
+                if (remoteExpColor.isNotEmpty() && remoteExpColor != _expenseWalletColor.value) {
+                    _expenseWalletColor.value = remoteExpColor
+                    repository.insertSetting("expense_wallet_color", remoteExpColor)
+                }
+                val remoteCardColor = metadata.optString("credit_card_wallet_color", "")
+                if (remoteCardColor.isNotEmpty() && remoteCardColor != _creditCardWalletColor.value) {
+                    _creditCardWalletColor.value = remoteCardColor
+                    repository.insertSetting("credit_card_wallet_color", remoteCardColor)
+                }
+                val remoteName = metadata.optString("name", "")
+                if (remoteName.isNotEmpty() && remoteName != _userName.value) {
+                    _userName.value = remoteName
+                    repository.insertSetting("user_profile_name", remoteName)
+                }
+            }
+        } catch (_: Exception) {
+            // Fallback to app_settings table
+            try {
+                val api = SupabaseClient.api ?: return
+                val settings = api.getAppSettings()
+                for (s in settings) {
+                    when (s.key) {
+                        "app_theme" -> {
+                            if (s.value.isNotEmpty()) {
+                                _appTheme.value = s.value
+                                repository.insertSetting("app_theme", s.value)
+                            }
+                        }
+                        "expense_wallet_color" -> {
+                            if (s.value.isNotEmpty()) {
+                                _expenseWalletColor.value = s.value
+                                repository.insertSetting("expense_wallet_color", s.value)
+                            }
+                        }
+                        "credit_card_wallet_color" -> {
+                            if (s.value.isNotEmpty()) {
+                                _creditCardWalletColor.value = s.value
+                                repository.insertSetting("credit_card_wallet_color", s.value)
+                            }
+                        }
+                        "user_profile_name" -> {
+                            if (s.value.isNotEmpty()) {
+                                _userName.value = s.value
+                                repository.insertSetting("user_profile_name", s.value)
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private suspend fun pushRemoteSettings(
+        theme: String? = null,
+        expenseColor: String? = null,
+        cardColor: String? = null,
+        userName: String? = null,
+        isRetry: Boolean = false
+    ) {
+        val targetTheme = theme ?: _appTheme.value
+        val targetExpColor = expenseColor ?: _expenseWalletColor.value
+        val targetCardColor = cardColor ?: _creditCardWalletColor.value
+        val targetName = userName ?: _userName.value
+
+        try {
+            val authApi = SupabaseClient.authApi
+            if (authApi != null) {
+                val dataObj = JSONObject().apply {
+                    put("app_theme", targetTheme)
+                    put("expense_wallet_color", targetExpColor)
+                    put("credit_card_wallet_color", targetCardColor)
+                    put("name", targetName)
+                }
+                val bodyObj = JSONObject().apply {
+                    put("data", dataObj)
+                }
+                val requestBody = bodyObj.toString().toRequestBody("application/json".toMediaType())
+                authApi.updateUserRaw(requestBody)
+            }
+        } catch (e: Exception) {
+            if (e is retrofit2.HttpException && e.code() == 401 && !isRetry) {
+                if (refreshSupabaseToken()) {
+                    pushRemoteSettings(theme, expenseColor, cardColor, userName, isRetry = true)
+                    return
+                }
+            }
+        }
+
+        try {
+            val api = SupabaseClient.api ?: return
+            val list = listOf(
+                SupabaseAppSetting("app_theme", targetTheme),
+                SupabaseAppSetting("expense_wallet_color", targetExpColor),
+                SupabaseAppSetting("credit_card_wallet_color", targetCardColor),
+                SupabaseAppSetting("user_profile_name", targetName)
+            )
+            api.upsertAppSettings(list)
+        } catch (_: Exception) {}
     }
 
     private fun encodeCategories(list: List<String>): String {
@@ -849,9 +984,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     currentList.add(trimmed)
                     repository.insertSetting("categories_list", encodeCategories(currentList))
                     _categories.value = currentList
-                    try {
-                        SupabaseClient.api?.upsertCategories(listOf(SupabaseCategory(trimmed, "expense")))
-                    } catch (e: Exception) { e.printStackTrace() }
+                    pushCategoryWithRetry(trimmed, "expense")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -867,9 +1000,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     currentList.remove(category)
                     repository.insertSetting("categories_list", encodeCategories(currentList))
                     _categories.value = currentList
-                    try {
-                        SupabaseClient.api?.deleteCategory("eq.${category}", "eq.expense")
-                    } catch (e: Exception) { e.printStackTrace() }
+                    deleteCategoryWithRetry(category, "expense")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -887,9 +1018,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     currentList.add(trimmed)
                     repository.insertSetting("income_categories_list", encodeCategories(currentList))
                     _incomeCategories.value = currentList
-                    try {
-                        SupabaseClient.api?.upsertCategories(listOf(SupabaseCategory(trimmed, "income")))
-                    } catch (e: Exception) { e.printStackTrace() }
+                    pushCategoryWithRetry(trimmed, "income")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -905,12 +1034,36 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     currentList.remove(category)
                     repository.insertSetting("income_categories_list", encodeCategories(currentList))
                     _incomeCategories.value = currentList
-                    try {
-                        SupabaseClient.api?.deleteCategory("eq.${category}", "eq.income")
-                    } catch (e: Exception) { e.printStackTrace() }
+                    deleteCategoryWithRetry(category, "income")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    private suspend fun pushCategoryWithRetry(name: String, type: String, isRetry: Boolean = false) {
+        try {
+            SupabaseClient.api?.upsertCategories(listOf(SupabaseCategory(name, type)))
+        } catch (e: Exception) {
+            if (e is retrofit2.HttpException && e.code() == 401 && !isRetry) {
+                if (refreshSupabaseToken()) {
+                    pushCategoryWithRetry(name, type, isRetry = true)
+                }
+            } else {
+                LedgerlyRepository.appContext?.let { SyncWorker.enqueue(it) }
+            }
+        }
+    }
+
+    private suspend fun deleteCategoryWithRetry(name: String, type: String, isRetry: Boolean = false) {
+        try {
+            SupabaseClient.api?.deleteCategory("eq.${name}", "eq.${type}")
+        } catch (e: Exception) {
+            if (e is retrofit2.HttpException && e.code() == 401 && !isRetry) {
+                if (refreshSupabaseToken()) {
+                    deleteCategoryWithRetry(name, type, isRetry = true)
+                }
             }
         }
     }
@@ -975,9 +1128,11 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 )
                 repository.insertTransaction(transferTx)
 
-                SupabaseClient.api?.let { api ->
-                    api.upsertSavingsGoals(listOf(updatedGoal.toSupabase()))
-                    api.upsertTransactions(listOf(transferTx.toSupabase()))
+                pushSavingsGoalWithRetry(updatedGoal)
+                try {
+                    SupabaseClient.api?.upsertTransactions(listOf(transferTx.toSupabase()))
+                } catch (_: Exception) {
+                    LedgerlyRepository.appContext?.let { SyncWorker.enqueue(it) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1007,9 +1162,11 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 )
                 repository.insertTransaction(transferTx)
 
-                SupabaseClient.api?.let { api ->
-                    api.upsertSavingsGoals(listOf(updatedGoal.toSupabase()))
-                    api.upsertTransactions(listOf(transferTx.toSupabase()))
+                pushSavingsGoalWithRetry(updatedGoal)
+                try {
+                    SupabaseClient.api?.upsertTransactions(listOf(transferTx.toSupabase()))
+                } catch (_: Exception) {
+                    LedgerlyRepository.appContext?.let { SyncWorker.enqueue(it) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1020,11 +1177,10 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
     fun addSavingsGoal(name: String, targetAmount: Double, currentAmount: Double = 0.0, category: String = "Overall") {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val sg = SavingsGoal(name = name, targetAmount = targetAmount, currentAmount = currentAmount, category = category)
-                val id = repository.insertSavingsGoal(sg)
-                SupabaseClient.api?.let { api ->
-                    api.upsertSavingsGoals(listOf(sg.copy(id = id).toSupabase()))
-                }
+                val generatedId = System.currentTimeMillis() * 1000L + kotlin.random.Random.nextLong(1000)
+                val sg = SavingsGoal(id = generatedId, name = name, targetAmount = targetAmount, currentAmount = currentAmount, category = category)
+                repository.insertSavingsGoal(sg)
+                pushSavingsGoalWithRetry(sg)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -1035,9 +1191,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.insertSavingsGoal(sg)
-                SupabaseClient.api?.let { api ->
-                    api.upsertSavingsGoals(listOf(sg.toSupabase()))
-                }
+                pushSavingsGoalWithRetry(sg)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -1048,11 +1202,35 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.deleteSavingsGoal(sg)
-                SupabaseClient.api?.let { api ->
-                    api.deleteSavingsGoal("eq.${sg.id}")
-                }
+                deleteSavingsGoalWithRetry(sg.id)
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    private suspend fun pushSavingsGoalWithRetry(sg: SavingsGoal, isRetry: Boolean = false) {
+        try {
+            SupabaseClient.api?.upsertSavingsGoals(listOf(sg.toSupabase()))
+        } catch (e: Exception) {
+            if (e is retrofit2.HttpException && e.code() == 401 && !isRetry) {
+                if (refreshSupabaseToken()) {
+                    pushSavingsGoalWithRetry(sg, isRetry = true)
+                }
+            } else {
+                LedgerlyRepository.appContext?.let { SyncWorker.enqueue(it) }
+            }
+        }
+    }
+
+    private suspend fun deleteSavingsGoalWithRetry(id: Long, isRetry: Boolean = false) {
+        try {
+            SupabaseClient.api?.deleteSavingsGoal("eq.$id")
+        } catch (e: Exception) {
+            if (e is retrofit2.HttpException && e.code() == 401 && !isRetry) {
+                if (refreshSupabaseToken()) {
+                    deleteSavingsGoalWithRetry(id, isRetry = true)
+                }
             }
         }
     }
@@ -1403,6 +1581,21 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                 supSavingsGoals.forEach { repository.insertSavingsGoal(it.toRoom()) }
                 supRecurrings.forEach { repository.insertRecurringTransaction(it.toRoom()) }
 
+                val supCategories = try { api.getCategories() } catch (e: Exception) { emptyList() }
+                if (supCategories.isNotEmpty()) {
+                    val newExpCats = supCategories.filter { it.type == "expense" }.map { it.name }
+                    val newIncCats = supCategories.filter { it.type == "income" }.map { it.name }
+                    if (newExpCats.isNotEmpty()) {
+                        repository.insertSetting("categories_list", encodeCategories(newExpCats))
+                        _categories.value = newExpCats
+                    }
+                    if (newIncCats.isNotEmpty()) {
+                        repository.insertSetting("income_categories_list", encodeCategories(newIncCats))
+                        _incomeCategories.value = newIncCats
+                    }
+                }
+                pullRemoteSettings()
+
                 // Update sync timestamp
                 repository.insertSetting("last_synced_at", System.currentTimeMillis().toString())
 
@@ -1496,7 +1689,15 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
                     }
                 }
 
-                _supabaseSyncSuccess.value = "Successfully pushed to Supabase: ${localTxs.size} transactions, ${localMembers.size} family members, ${localCards.size} cards, ${localGoals.size} goals, ${localRecurrings.size} recurring items!"
+                val catPushList = _categories.value.map { SupabaseCategory(it, "expense") } + _incomeCategories.value.map { SupabaseCategory(it, "income") }
+                if (catPushList.isNotEmpty()) {
+                    catPushList.chunked(batchSize).forEach { chunk ->
+                        try { api.upsertCategories(chunk) } catch (_: Exception) {}
+                    }
+                }
+                pushRemoteSettings()
+
+                _supabaseSyncSuccess.value = "Successfully pushed to Supabase: ${localTxs.size} transactions, ${localMembers.size} family members, ${localCards.size} cards, ${localGoals.size} goals, ${localSavingsGoals.size} savings goals, ${catPushList.size} categories!"
             } catch (e: Exception) {
                 e.printStackTrace()
                 if (e is java.io.IOException) {
@@ -1626,6 +1827,7 @@ class LedgerlyViewModel(private val repository: LedgerlyRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertSetting("user_profile_name", name)
             _userName.value = name
+            pushRemoteSettings(userName = name)
         }
     }
 

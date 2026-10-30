@@ -41,7 +41,7 @@ jobs:
           RAW_TAG="${{ github.ref_name }}"
           CLEAN_VER="${RAW_TAG#v}"
           if [ -z "$CLEAN_VER" ] || [ "$CLEAN_VER" = "main" ]; then
-            CLEAN_VER="1.2.0"
+            CLEAN_VER="2.1.0"
           fi
           echo "APP_VER_NAME=$CLEAN_VER" >> $GITHUB_ENV
           CODE=$((GITHUB_RUN_NUMBER + 10))

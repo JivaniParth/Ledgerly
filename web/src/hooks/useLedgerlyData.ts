@@ -139,7 +139,60 @@ export function useLedgerlyData() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+
+    if (!user) return;
+
+    // Realtime subscription for automatic cross-device sync
+    const channel = supabase
+      .channel('ledgerly-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'savings_goals' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_goals' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_transactions' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'family_members' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'credit_cards' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'custom_wallets' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    // Re-sync when switching back to this browser tab
+    const handleFocus = () => {
+      fetchData();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, fetchData]);
 
   // Real-time calculated balances & metrics
   const expenseBalance = useMemo(() => calculateExpenseBalance(transactions), [transactions]);
@@ -534,9 +587,34 @@ export function useLedgerlyData() {
 
   // 8. Categories
   const addCategory = async (name: string, type: 'expense' | 'income') => {
-    const newCat: Category = { name, type };
-    setCategories((prev) => [...prev, newCat]);
-    const { error } = await supabase.from('categories').insert([newCat]);
+    const trimmed = name.trim();
+    if (!trimmed) return { success: false, error: 'Category name cannot be empty' };
+
+    const currentTypeCategories = categories.filter((c) => c.type === type);
+    let itemsToInsert: Category[] = [];
+
+    // If remote categories for this type are empty, seed defaults first so defaults are not wiped out
+    if (currentTypeCategories.length === 0) {
+      const defaults = type === 'expense' ? DEFAULT_EXPENSE_CATEGORIES : DEFAULT_INCOME_CATEGORIES;
+      const seedList: Category[] = defaults.map((d) => ({ name: d, type }));
+      if (!defaults.some((d) => d.toLowerCase() === trimmed.toLowerCase())) {
+        seedList.push({ name: trimmed, type });
+      }
+      itemsToInsert = seedList;
+    } else {
+      if (categories.some((c) => c.type === type && c.name.toLowerCase() === trimmed.toLowerCase())) {
+        return { success: false, error: 'Category already exists' };
+      }
+      itemsToInsert = [{ name: trimmed, type }];
+    }
+
+    setCategories((prev) => {
+      const existingNames = new Set(prev.map((c) => `${c.name}::${c.type}`));
+      const toAdd = itemsToInsert.filter((c) => !existingNames.has(`${c.name}::${c.type}`));
+      return [...prev, ...toAdd];
+    });
+
+    const { error } = await supabase.from('categories').upsert(itemsToInsert);
     if (error) {
       fetchData();
       return { success: false, error: error.message };

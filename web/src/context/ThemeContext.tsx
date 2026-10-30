@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 type ThemeMode = 'dark' | 'light' | 'system';
 
@@ -29,6 +30,56 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [isDark, setIsDark] = useState<boolean>(true);
 
+  // Sync settings from Supabase Auth metadata or app_settings table
+  useEffect(() => {
+    const syncFromRemote = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.user_metadata) {
+          const meta = user.user_metadata;
+          if (meta.app_theme && meta.app_theme !== theme) {
+            setThemeState(meta.app_theme as ThemeMode);
+            localStorage.setItem('ledgerly_theme', meta.app_theme);
+          }
+          if (meta.expense_wallet_color && meta.expense_wallet_color !== expenseWalletColor) {
+            setExpenseWalletColorState(meta.expense_wallet_color);
+            localStorage.setItem('ledgerly_expense_color', meta.expense_wallet_color);
+          }
+          if (meta.credit_card_wallet_color && meta.credit_card_wallet_color !== creditCardColor) {
+            setCreditCardColorState(meta.credit_card_wallet_color);
+            localStorage.setItem('ledgerly_card_color', meta.credit_card_wallet_color);
+          }
+        }
+      } catch {
+        // Fallback or offline
+      }
+    };
+
+    syncFromRemote();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.user_metadata) {
+        const meta = session.user.user_metadata;
+        if (meta.app_theme) {
+          setThemeState(meta.app_theme as ThemeMode);
+          localStorage.setItem('ledgerly_theme', meta.app_theme);
+        }
+        if (meta.expense_wallet_color) {
+          setExpenseWalletColorState(meta.expense_wallet_color);
+          localStorage.setItem('ledgerly_expense_color', meta.expense_wallet_color);
+        }
+        if (meta.credit_card_wallet_color) {
+          setCreditCardColorState(meta.credit_card_wallet_color);
+          localStorage.setItem('ledgerly_card_color', meta.credit_card_wallet_color);
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     const root = document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -51,16 +102,28 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);
     localStorage.setItem('ledgerly_theme', newTheme);
+    supabase.auth.updateUser({
+      data: { app_theme: newTheme },
+    }).catch(() => {});
+    Promise.resolve(supabase.from('app_settings').upsert([{ key: 'app_theme', value: newTheme }])).catch(() => {});
   };
 
   const setExpenseWalletColor = (color: string) => {
     setExpenseWalletColorState(color);
     localStorage.setItem('ledgerly_expense_color', color);
+    supabase.auth.updateUser({
+      data: { expense_wallet_color: color },
+    }).catch(() => {});
+    Promise.resolve(supabase.from('app_settings').upsert([{ key: 'expense_wallet_color', value: color }])).catch(() => {});
   };
 
   const setCreditCardColor = (color: string) => {
     setCreditCardColorState(color);
     localStorage.setItem('ledgerly_card_color', color);
+    supabase.auth.updateUser({
+      data: { credit_card_wallet_color: color },
+    }).catch(() => {});
+    Promise.resolve(supabase.from('app_settings').upsert([{ key: 'credit_card_wallet_color', value: color }])).catch(() => {});
   };
 
   return (

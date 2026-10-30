@@ -12,11 +12,11 @@ android {
   val appVersionName: String = (project.findProperty("appVersionName") as? String)
     ?.takeIf { it.isNotBlank() }
     ?: System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() }
-    ?: "1.2.0"
+    ?: "2.1.0"
 
   val appVersionCode: Int = (project.findProperty("appVersionCode") as? String)?.toIntOrNull()
     ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
-    ?: 5
+    ?: 6
 
   defaultConfig {
     applicationId = "com.parthjivani.ledgerly"
